@@ -186,6 +186,9 @@ export default function Home() {
         <footer className="mt-16 border-t py-8">
           <div className="mx-auto max-w-5xl text-center text-sm text-muted-foreground">
             Allocatify · Your data never leaves your device · No accounts required
+            <p className="mt-2 text-xs opacity-70">
+              © 2026 Noemi. All lefts (and rights) reserved.
+            </p>
           </div>
         </footer>
 
