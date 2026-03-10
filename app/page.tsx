@@ -125,8 +125,8 @@ export default function Home() {
           </div>
 
           {/* Tools row: month switcher, templates, reset, export/import */}
-          <div className="mb-8 flex flex-wrap items-center justify-center gap-4 sm:justify-between">
-            <div className="flex flex-wrap items-center gap-2">
+          <div className="mb-8 flex flex-col sm:flex-row flex-wrap items-center gap-8 sm:gap-4 sm:justify-between">
+            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
               <MonthSwitcher />
               <TemplateSelector />
               <Button

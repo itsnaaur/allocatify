@@ -23,8 +23,8 @@ export function AllocationChart() {
 
   if (totalCents === 0 || data.length === 0) {
     return (
-      <div className="flex h-64 items-center justify-center rounded-xl border bg-muted/30">
-        <p className="text-sm text-muted-foreground">
+      <div className="flex h-64 items-center justify-center rounded-xl border bg-muted/30 px-6">
+        <p className="text-sm text-muted-foreground text-center max-w-[280px]">
           Add a total budget and allocate to categories to see the chart
         </p>
       </div>

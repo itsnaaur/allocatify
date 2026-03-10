@@ -102,7 +102,7 @@ export function DataPorter() {
 
   return (
     <>
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center justify-center sm:justify-end gap-2">
         <Button
           type="button"
           variant="outline"
