@@ -14,9 +14,11 @@ import type { CategorySchema } from "@/lib/schema-validator";
 interface CategoryCardProps {
   category: CategorySchema;
   totalCents: number;
+  /** Optional drag handle (e.g. for sortable) */
+  dragHandle?: React.ReactNode;
 }
 
-export function CategoryCard({ category, totalCents }: CategoryCardProps) {
+export function CategoryCard({ category, totalCents, dragHandle }: CategoryCardProps) {
   const currency = useBudgetStore((s) => s.currency);
   const setCategoryAllocation = useBudgetStore((s) => s.setCategoryAllocation);
   const removeCategory = useBudgetStore((s) => s.removeCategory);
@@ -69,7 +71,8 @@ export function CategoryCard({ category, totalCents }: CategoryCardProps) {
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          {dragHandle}
           <div
             className="h-3 w-3 rounded-full shrink-0"
             style={{ backgroundColor: category.color ?? "#6b7280" }}

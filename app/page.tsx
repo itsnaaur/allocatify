@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useBudgetStore } from "@/store/budget-store";
 import { TotalInput } from "@/components/budget/total-input";
-import { CategoryCard } from "@/components/budget/category-card";
+import { SortableCategoryCard } from "@/components/budget/sortable-category-card";
 import { AllocationSummary } from "@/components/budget/allocation-summary";
 import { AllocationChart } from "@/components/budget/allocation-chart";
 import { TemplateSelector } from "@/components/budget/template-selector";
@@ -20,6 +20,8 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import { Plus, RotateCcw, AlertTriangle } from "lucide-react";
+import { DndContext, closestCenter, type DragEndEvent } from "@dnd-kit/core";
+import { SortableContext, rectSortingStrategy } from "@dnd-kit/sortable";
 
 function AddCategoryButton() {
   const addCategory = useBudgetStore((s) => s.addCategory);
@@ -92,11 +94,20 @@ export default function Home() {
   const totalCents = useBudgetStore((s) => s.totalCents);
   const budgetName = useBudgetStore((s) => s.budgetName);
   const reset = useBudgetStore((s) => s.reset);
+  const reorderCategories = useBudgetStore((s) => s.reorderCategories);
   const [resetDialogOpen, setResetDialogOpen] = React.useState(false);
 
   const handleConfirmReset = () => {
     reset();
     setResetDialogOpen(false);
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const fromIndex = categories.findIndex((c) => c.id === active.id);
+    const toIndex = categories.findIndex((c) => c.id === over.id);
+    if (fromIndex >= 0 && toIndex >= 0) reorderCategories(fromIndex, toIndex);
   };
 
   return (
@@ -105,7 +116,9 @@ export default function Home() {
         {/* Nav: currency + theme only */}
         <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
           <div className="mx-auto flex h-14 max-w-5xl items-center justify-between">
-            <h1 className="text-xl font-bold tracking-tight">Allocatify</h1>
+            <h1 className="text-xl font-bold tracking-tight">
+              A<span className="text-green-600 dark:text-green-400">ll</span>ocatify
+            </h1>
             <div className="flex items-center gap-2">
               <CurrencySelector />
               <ThemeToggle />
@@ -170,15 +183,22 @@ export default function Home() {
               <h3 className="text-lg font-semibold">Categories</h3>
               <AddCategoryButton />
             </div>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {categories.map((cat) => (
-                <CategoryCard
-                  key={cat.id}
-                  category={cat}
-                  totalCents={totalCents}
-                />
-              ))}
-            </div>
+            <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              <SortableContext
+                items={categories.map((c) => c.id)}
+                strategy={rectSortingStrategy}
+              >
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {categories.map((cat) => (
+                    <SortableCategoryCard
+                      key={cat.id}
+                      category={cat}
+                      totalCents={totalCents}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
           </section>
         </main>
 

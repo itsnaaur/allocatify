@@ -33,6 +33,7 @@ export interface BudgetState {
   addCategory: (name: string, color?: string) => void;
   removeCategory: (id: string) => void;
   renameCategory: (id: string, name: string) => void;
+  reorderCategories: (fromIndex: number, toIndex: number) => void;
   applyTemplate: (template: BudgetTemplate) => void;
   hydrate: () => Promise<void>;
   persist: () => Promise<void>;
@@ -135,6 +136,16 @@ export const useBudgetStore = create<BudgetState>((set, get) => ({
         c.id === id ? { ...c, name } : c
       ),
     }));
+    get().persist();
+  },
+
+  reorderCategories: (fromIndex, toIndex) => {
+    set((state) => {
+      const cats = [...state.categories];
+      const [removed] = cats.splice(fromIndex, 1);
+      cats.splice(toIndex, 0, removed);
+      return { categories: cats };
+    });
     get().persist();
   },
 
