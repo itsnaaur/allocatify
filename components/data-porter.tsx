@@ -127,7 +127,7 @@ export function DataPorter() {
 
       {previewType && (
         <Dialog open={true} onOpenChange={handleOpenChange}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogContent className="w-[calc(100vw-2rem)] max-w-2xl max-h-[85dvh] sm:max-h-[90vh] overflow-hidden flex flex-col p-4 sm:p-6">
           <DialogHeader className="flex flex-row items-center justify-between gap-4 pb-2">
             <DialogTitle className="text-left">
               {previewType === "csv" && "CSV Preview"}
@@ -143,23 +143,23 @@ export function DataPorter() {
           {previewType === "csv" && (
             <div className="flex flex-col gap-4 flex-1 min-h-0">
               <p className="text-sm text-muted-foreground">{budgetName}</p>
-              <div className="flex-1 overflow-auto rounded-lg border max-h-[50vh]">
-                <table className="w-full text-sm">
+              <div className="flex-1 overflow-x-auto overflow-y-auto rounded-lg border max-h-[45vh] sm:max-h-[50vh]">
+                <table className="w-full text-sm min-w-[280px]">
                   <thead>
                     <tr className="border-b bg-muted/50">
-                      <th className="text-left font-semibold p-3">Category</th>
-                      <th className="text-right font-semibold p-3">Allocated</th>
-                      <th className="text-right font-semibold p-3">%</th>
+                      <th className="text-left font-semibold p-2 sm:p-3">Category</th>
+                      <th className="text-right font-semibold p-2 sm:p-3">Allocated</th>
+                      <th className="text-right font-semibold p-2 sm:p-3">%</th>
                     </tr>
                   </thead>
                   <tbody>
                     {budget.categories.map((cat) => (
                       <tr key={cat.id} className="border-b last:border-b-0">
-                        <td className="p-3">{cat.name}</td>
-                        <td className="p-3 text-right font-mono">
+                        <td className="p-2 sm:p-3">{cat.name}</td>
+                        <td className="p-2 sm:p-3 text-right font-mono">
                           {formatCents(cat.allocatedCents, currency)}
                         </td>
-                        <td className="p-3 text-right text-muted-foreground">
+                        <td className="p-2 sm:p-3 text-right text-muted-foreground">
                           {budget.totalCents > 0
                             ? percentOf(cat.allocatedCents, budget.totalCents).toFixed(1)
                             : "0"}
@@ -168,14 +168,14 @@ export function DataPorter() {
                       </tr>
                     ))}
                     <tr className="border-t bg-muted/30 font-medium">
-                      <td className="p-3">Allocated</td>
-                      <td className="p-3 text-right font-mono">
+                      <td className="p-2 sm:p-3">Allocated</td>
+                      <td className="p-2 sm:p-3 text-right font-mono">
                         {formatCents(
                           budget.categories.reduce((s, c) => s + c.allocatedCents, 0),
                           currency
                         )}
                       </td>
-                      <td className="p-3 text-right text-muted-foreground">
+                      <td className="p-2 sm:p-3 text-right text-muted-foreground">
                         {budget.totalCents > 0
                           ? percentOf(
                               budget.categories.reduce((s, c) => s + c.allocatedCents, 0),
@@ -186,15 +186,15 @@ export function DataPorter() {
                       </td>
                     </tr>
                     <tr className="border-b bg-muted/30 font-medium">
-                      <td className="p-3">Remaining</td>
-                      <td className="p-3 text-right font-mono">
+                      <td className="p-2 sm:p-3">Remaining</td>
+                      <td className="p-2 sm:p-3 text-right font-mono">
                         {formatCents(
                           budget.totalCents -
                             budget.categories.reduce((s, c) => s + c.allocatedCents, 0),
                           currency
                         )}
                       </td>
-                      <td className="p-3 text-right text-muted-foreground">
+                      <td className="p-2 sm:p-3 text-right text-muted-foreground">
                         {budget.totalCents > 0
                           ? percentOf(
                               budget.totalCents -
@@ -206,11 +206,11 @@ export function DataPorter() {
                       </td>
                     </tr>
                     <tr className="border-t-2 bg-muted/50 font-semibold">
-                      <td className="p-3">Total</td>
-                      <td className="p-3 text-right font-mono">
+                      <td className="p-2 sm:p-3">Total</td>
+                      <td className="p-2 sm:p-3 text-right font-mono">
                         {formatCents(budget.totalCents, currency)}
                       </td>
-                      <td className="p-3 text-right">100%</td>
+                      <td className="p-2 sm:p-3 text-right">100%</td>
                     </tr>
                   </tbody>
                 </table>
@@ -232,7 +232,7 @@ export function DataPorter() {
                 <>
                   <iframe
                     src={pdfBlobUrl}
-                    className="w-full h-[60vh] min-h-[400px] rounded-lg border"
+                    className="w-full h-[50vh] min-h-[280px] sm:h-[60vh] sm:min-h-[400px] rounded-lg border"
                     title="PDF preview"
                   />
                   <Button type="button" onClick={handleDownloadPdf} className="w-full sm:w-auto">
