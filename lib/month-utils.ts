@@ -47,3 +47,31 @@ export function getUpcomingMonthKeys(fromMonthKey: string, count: number): strin
   }
   return result;
 }
+
+/**
+ * Shift a monthKey by n months (n may be negative).
+ */
+export function addMonths(monthKey: string, n: number): string {
+  const [year, month] = monthKey.split("-").map(Number);
+  const index = year * 12 + (month - 1) + n;
+  const y = Math.floor(index / 12);
+  const m = (index % 12) + 1;
+  return `${y}-${String(m).padStart(2, "0")}`;
+}
+
+/**
+ * Number of months from a to b (b - a). Same month = 0.
+ */
+export function monthDiff(a: string, b: string): number {
+  const [ay, am] = a.split("-").map(Number);
+  const [by, bm] = b.split("-").map(Number);
+  return by * 12 + bm - (ay * 12 + am);
+}
+
+/**
+ * Number of days in the month of a monthKey.
+ */
+export function daysInMonth(monthKey: string): number {
+  const [year, month] = monthKey.split("-").map(Number);
+  return new Date(year, month, 0).getDate();
+}

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useBudgetStore } from "@/store/budget-store";
-import { toCents, formatCents, fromCents } from "@/lib/math-engine";
+import { toCents, formatCents, fromCents, sanitizeAmountInput } from "@/lib/math-engine";
 import { CURRENCIES } from "@/lib/currencies";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,7 +24,7 @@ export function TotalInput() {
   }, [totalCents, minorUnits, isFocused]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const v = e.target.value;
+    const v = sanitizeAmountInput(e.target.value, minorUnits === 1 ? 0 : 2);
     setLocalValue(v);
     setTotal(toCents(v, minorUnits));
   };
@@ -44,11 +44,11 @@ export function TotalInput() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle id="total-budget-label">Total Budget</CardTitle>
+        <CardTitle id="total-budget-label">Monthly income</CardTitle>
       </CardHeader>
       <CardContent>
         <Label htmlFor="total-input" className="sr-only">
-          Enter your total monthly budget
+          Enter your monthly income (salary after tax)
         </Label>
         <Input
           id="total-input"
@@ -64,7 +64,7 @@ export function TotalInput() {
           className="text-2xl font-semibold"
         />
         <p id="total-budget-hint" className="mt-2 text-sm text-muted-foreground">
-          {totalCents > 0 ? formatCents(totalCents, currency) : "Enter your monthly income"}
+          {totalCents > 0 ? formatCents(totalCents, currency) : "Your salary after tax, for this month"}
         </p>
       </CardContent>
     </Card>

@@ -9,12 +9,20 @@ import {
   loadBudget,
   saveBudget,
   deleteBudget,
+  getSetting,
+  switchCurrencyEverywhere,
   type StoredBudget,
 } from "@/lib/db";
-import { applyTemplateToTotal, type BudgetTemplate } from "@/lib/templates";
+import {
+  applyTemplateToTotal,
+  splitAfterGoals,
+  TEMPLATES,
+  type BudgetTemplate,
+} from "@/lib/templates";
 import type { CurrencyCode } from "@/lib/currencies";
-import { DEFAULT_CURRENCY } from "@/lib/currencies";
-import { getMonthKey, getNextMonthKey, formatMonthKey } from "@/lib/month-utils";
+import { CURRENCIES, DEFAULT_CURRENCY } from "@/lib/currencies";
+import { getMonthKey, formatMonthKey } from "@/lib/month-utils";
+import { usePlannerStore } from "@/store/planner-store";
 
 export interface BudgetState {
   totalCents: number;
@@ -25,14 +33,25 @@ export interface BudgetState {
   monthlyBudgets: StoredBudget[];
   currency: CurrencyCode;
   activeTemplateId: string | null;
+  /** Categories follow their percentages when the total changes (until hand-edited). */
+  autoScale: boolean;
+  createdAt: number;
   isHydrated: boolean;
   // Actions
-  setCurrency: (currency: CurrencyCode) => void;
+  setCurrency: (currency: CurrencyCode) => Promise<void>;
   setTotal: (cents: number) => void;
   setCategoryAllocation: (id: string, cents: number) => void;
-  addCategory: (name: string, color?: string) => void;
+  /**
+   * While auto-split is on: must-haves get their share of what's left to spend,
+   * goals come next, and the other categories share whatever remains.
+   */
+  autoSplit: (spendableCents: number, goalSavingsCents: number) => void;
+  /** Returns false when the name is empty or already used. */
+  addCategory: (name: string, color?: string) => boolean;
   removeCategory: (id: string) => void;
-  renameCategory: (id: string, name: string) => void;
+  /** Returns false when the name is empty or already used by another category. */
+  renameCategory: (id: string, name: string) => boolean;
+  toggleEssential: (id: string) => void;
   reorderCategories: (fromIndex: number, toIndex: number) => void;
   applyTemplate: (template: BudgetTemplate) => void;
   hydrate: () => Promise<void>;
@@ -57,23 +76,59 @@ const COLORS = [
   "#06b6d4",
 ];
 
-const DEFAULT_CATEGORIES: CategorySchema[] = [
-  { id: "needs", name: "Needs", allocatedCents: 0, color: "#22c55e" },
-  { id: "wants", name: "Wants", allocatedCents: 0, color: "#3b82f6" },
-  { id: "savings", name: "Savings", allocatedCents: 0, color: "#8b5cf6" },
-];
+const DEFAULT_TEMPLATE_ID = "50-30-20";
+const DEFAULT_CATEGORIES: CategorySchema[] = applyTemplateToTotal(
+  TEMPLATES.find((t) => t.id === DEFAULT_TEMPLATE_ID)!,
+  0
+);
+
+function nameTaken(categories: CategorySchema[], name: string, exceptId?: string): boolean {
+  const n = name.trim().toLowerCase();
+  return categories.some((c) => c.id !== exceptId && c.name.trim().toLowerCase() === n);
+}
+
+/**
+ * Older saves never applied the default template's split. If nothing has been allocated
+ * yet and the categories still match the active template, let them follow it.
+ */
+function shouldAutoScale(budget: StoredBudget): boolean {
+  if (budget.autoScale !== undefined) return budget.autoScale;
+  const template = TEMPLATES.find((t) => t.id === budget.activeTemplateId);
+  if (!template || template.categories.length === 0) return false;
+  const sameIds =
+    template.categories.length === budget.categories.length &&
+    template.categories.every((c, i) => budget.categories[i]?.id === c.id);
+  return sameIds && budget.categories.every((c) => c.allocatedCents === 0);
+}
+
+function withTemplatePercentages(budget: StoredBudget): CategorySchema[] {
+  const template = TEMPLATES.find((t) => t.id === budget.activeTemplateId);
+  return budget.categories.map((c) => {
+    const fromTemplate = template?.categories.find((t) => t.id === c.id);
+    return {
+      ...c,
+      percentage: c.percentage ?? fromTemplate?.percentage,
+      essential: c.essential ?? fromTemplate?.essential,
+    };
+  });
+}
 
 function applyBudgetToState(set: (s: Partial<BudgetState>) => void, budget: StoredBudget) {
+  const autoScale = shouldAutoScale(budget);
   set({
     budgetId: budget.id,
     budgetName: budget.name,
     monthKey: budget.monthKey ?? budget.id,
     totalCents: budget.totalCents,
-    categories: budget.categories,
-    currency: (budget.currency as CurrencyCode) ?? DEFAULT_CURRENCY,
+    categories: autoScale ? withTemplatePercentages(budget) : budget.categories,
     activeTemplateId: budget.activeTemplateId ?? null,
+    autoScale,
+    createdAt: budget.createdAt ?? Date.now(),
   });
 }
+
+/** Saves run one after another so an older save can never overwrite a newer one. */
+let saveQueue: Promise<void> = Promise.resolve();
 
 export const useBudgetStore = create<BudgetState>((set, get) => ({
   totalCents: 0,
@@ -84,11 +139,21 @@ export const useBudgetStore = create<BudgetState>((set, get) => ({
   monthlyBudgets: [],
   currency: DEFAULT_CURRENCY,
   activeTemplateId: null,
+  autoScale: false,
+  createdAt: Date.now(),
   isHydrated: false,
 
-  setCurrency: (currency) => {
-    set({ currency });
-    get().persist();
+  setCurrency: async (currency) => {
+    const from = get().currency;
+    if (from === currency) return;
+    // Finish pending saves, then re-express every stored amount in the new currency
+    // (e.g. $5,000.00 → ¥5,000, not ¥500,000).
+    await saveQueue;
+    await switchCurrencyEverywhere(from, currency);
+    const current = await loadBudget(get().budgetId);
+    set({ currency, monthlyBudgets: await loadAllBudgets() });
+    if (current) applyBudgetToState(set, current);
+    await usePlannerStore.getState().load();
   },
 
   setTotal: (cents) => {
@@ -96,8 +161,18 @@ export const useBudgetStore = create<BudgetState>((set, get) => ({
     get().persist();
   },
 
+  autoSplit: (spendableCents, goalSavingsCents) => {
+    const { autoScale, categories } = get();
+    if (!autoScale || categories.length === 0) return;
+    const next = splitAfterGoals(categories, Math.max(0, spendableCents), goalSavingsCents);
+    if (next.every((c, i) => c.allocatedCents === categories[i].allocatedCents)) return;
+    set({ categories: next });
+    get().persist();
+  },
+
   setCategoryAllocation: (id, cents) => {
     set((state) => ({
+      autoScale: false,
       categories: state.categories.map((c) =>
         c.id === id ? { ...c, allocatedCents: Math.max(0, cents) } : c
       ),
@@ -107,33 +182,50 @@ export const useBudgetStore = create<BudgetState>((set, get) => ({
 
   addCategory: (name, color) => {
     const state = get();
+    const trimmed = name.trim();
+    if (!trimmed || nameTaken(state.categories, trimmed)) return false;
     const usedColors = new Set(state.categories.map((c) => c.color));
     const pick = color ?? COLORS.find((c) => !usedColors.has(c)) ?? COLORS[0];
     set({
+      autoScale: false,
       categories: [
         ...state.categories,
         {
           id: generateId(),
-          name,
+          name: trimmed,
           allocatedCents: 0,
           color: pick,
         },
       ],
     });
     get().persist();
+    return true;
   },
 
   removeCategory: (id) => {
     set((state) => ({
+      autoScale: false,
       categories: state.categories.filter((c) => c.id !== id),
     }));
     get().persist();
   },
 
   renameCategory: (id, name) => {
+    const trimmed = name.trim();
+    if (!trimmed || nameTaken(get().categories, trimmed, id)) return false;
     set((state) => ({
       categories: state.categories.map((c) =>
-        c.id === id ? { ...c, name } : c
+        c.id === id ? { ...c, name: trimmed } : c
+      ),
+    }));
+    get().persist();
+    return true;
+  },
+
+  toggleEssential: (id) => {
+    set((state) => ({
+      categories: state.categories.map((c) =>
+        c.id === id ? { ...c, essential: !c.essential } : c
       ),
     }));
     get().persist();
@@ -152,32 +244,46 @@ export const useBudgetStore = create<BudgetState>((set, get) => ({
   applyTemplate: (template) => {
     const { totalCents } = get();
     if (template.categories.length === 0) {
-      set({ categories: [], activeTemplateId: template.id });
+      set({ categories: [], activeTemplateId: template.id, autoScale: false });
     } else {
       const cats = applyTemplateToTotal(template, totalCents);
-      set({ categories: cats, activeTemplateId: template.id });
+      set({ categories: cats, activeTemplateId: template.id, autoScale: true });
     }
     get().persist();
   },
 
   hydrate: async () => {
-    const all = await loadAllBudgets();
-    set({ monthlyBudgets: all });
+    const [all, savedCurrency] = await Promise.all([
+      loadAllBudgets(),
+      getSetting<string>("currency"),
+    ]);
+    const currency =
+      savedCurrency && savedCurrency in CURRENCIES
+        ? (savedCurrency as CurrencyCode)
+        : DEFAULT_CURRENCY;
+    set({ monthlyBudgets: all, currency });
+    await usePlannerStore.getState().load();
 
+    const thisMonth = getMonthKey(new Date());
     if (all.length > 0) {
-      const latest = all[0];
-      applyBudgetToState(set, latest);
+      // Open this month if it exists, else the latest month before it, else the earliest.
+      const key = (b: StoredBudget) => b.monthKey ?? b.id;
+      const pick =
+        all.find((b) => key(b) === thisMonth) ??
+        all.find((b) => key(b) < thisMonth) ??
+        all[all.length - 1];
+      applyBudgetToState(set, pick);
     } else {
       // No saved budgets - init with current month and persist so it appears in the list
-      const monthKey = getMonthKey(new Date());
       const initial: StoredBudget = {
-        id: monthKey,
-        name: formatMonthKey(monthKey),
-        monthKey,
+        id: thisMonth,
+        name: formatMonthKey(thisMonth),
+        monthKey: thisMonth,
         totalCents: 0,
         categories: DEFAULT_CATEGORIES,
-        currency: DEFAULT_CURRENCY,
-        activeTemplateId: "50-30-20",
+        currency,
+        activeTemplateId: DEFAULT_TEMPLATE_ID,
+        autoScale: true,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
@@ -188,7 +294,7 @@ export const useBudgetStore = create<BudgetState>((set, get) => ({
     set({ isHydrated: true });
   },
 
-  persist: async () => {
+  persist: () => {
     const state = get();
     const payload: StoredBudget = {
       id: state.budgetId,
@@ -198,12 +304,17 @@ export const useBudgetStore = create<BudgetState>((set, get) => ({
       categories: state.categories,
       currency: state.currency,
       activeTemplateId: state.activeTemplateId ?? undefined,
-      createdAt: Date.now(),
+      autoScale: state.autoScale,
+      createdAt: state.createdAt,
       updatedAt: Date.now(),
     };
-    await saveBudget(payload);
-    const all = await loadAllBudgets();
-    set({ monthlyBudgets: all });
+    saveQueue = saveQueue
+      .then(async () => {
+        await saveBudget(payload);
+        set({ monthlyBudgets: await loadAllBudgets() });
+      })
+      .catch((err) => console.error("[Allocatify] Could not save budget", err));
+    return saveQueue;
   },
 
   reset: () => {
@@ -214,12 +325,14 @@ export const useBudgetStore = create<BudgetState>((set, get) => ({
       budgetId: state.budgetId,
       budgetName: state.budgetName,
       monthKey: state.monthKey,
-      activeTemplateId: "50-30-20",
+      activeTemplateId: DEFAULT_TEMPLATE_ID,
+      autoScale: true,
     });
     get().persist();
   },
 
   switchToMonth: async (monthKey) => {
+    await saveQueue;
     const budget = await loadBudget(monthKey);
     if (budget) {
       applyBudgetToState(set, budget);
@@ -227,6 +340,7 @@ export const useBudgetStore = create<BudgetState>((set, get) => ({
   },
 
   createNewMonth: async (monthKey, copyFromCurrent = true) => {
+    await saveQueue;
     const state = get();
     const existing = await loadBudget(monthKey);
     if (existing) {
@@ -244,7 +358,8 @@ export const useBudgetStore = create<BudgetState>((set, get) => ({
         ? state.categories.map((c) => ({ ...c, id: generateId(), allocatedCents: c.allocatedCents }))
         : DEFAULT_CATEGORIES,
       currency: state.currency,
-      activeTemplateId: copyFromCurrent ? state.activeTemplateId ?? undefined : "50-30-20",
+      activeTemplateId: copyFromCurrent ? state.activeTemplateId ?? undefined : DEFAULT_TEMPLATE_ID,
+      autoScale: copyFromCurrent ? state.autoScale : true,
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
@@ -269,8 +384,11 @@ export const useBudgetStore = create<BudgetState>((set, get) => ({
         monthKey: newMonthKey,
         totalCents: 0,
         categories: DEFAULT_CATEGORIES,
-        activeTemplateId: "50-30-20",
+        activeTemplateId: DEFAULT_TEMPLATE_ID,
+        autoScale: true,
+        createdAt: Date.now(),
       });
+      get().persist();
     }
   },
 }));

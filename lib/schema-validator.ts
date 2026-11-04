@@ -8,6 +8,7 @@ export interface CategorySchema {
   allocatedCents: number;
   color?: string;
   percentage?: number; // Optional target percentage (0-100)
+  essential?: boolean; // Must-have spending (food, rent…) protected when suggesting savings
 }
 
 export interface BudgetSchema {
@@ -18,6 +19,7 @@ export interface BudgetSchema {
   categories: CategorySchema[];
   currency?: string;
   activeTemplateId?: string; // e.g. "50-30-20", "freelancer"
+  autoScale?: boolean; // Categories follow their percentages when the total changes
   createdAt: number;
   updatedAt: number;
 }

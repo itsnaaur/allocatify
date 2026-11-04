@@ -90,3 +90,55 @@ export function percentOf(part: number, total: number): number {
   if (total === 0) return 0;
   return Math.round((part / total) * 10000) / 100;
 }
+
+/**
+ * Re-express an amount stored in one currency's minor units in another's.
+ * Switching currency relabels the amount (no exchange rate): $10.55 → ¥11.
+ */
+export function rescaleMinor(amount: number, fromMinor: number, toMinor: number): number {
+  if (fromMinor === toMinor) return amount;
+  return Math.round((amount * toMinor) / fromMinor);
+}
+
+/**
+ * Clean what a user typed into an amount field: digits and one decimal point only,
+ * at most `decimals` decimal places. Commas, letters and minus signs are dropped.
+ */
+export function sanitizeAmountInput(raw: string, decimals: number): string {
+  let out = "";
+  let seenDot = false;
+  let fraction = 0;
+  for (const ch of raw) {
+    if (ch >= "0" && ch <= "9") {
+      if (seenDot) {
+        if (fraction >= decimals) continue;
+        fraction++;
+      }
+      out += ch;
+    } else if (ch === "." && !seenDot) {
+      seenDot = true;
+      // Whole-unit currencies (JPY): ignore the fraction instead of merging digits.
+      if (decimals > 0) out += ch;
+    }
+  }
+  return out;
+}
+
+/**
+ * Split a total into integer parts by percentages so the parts always add up exactly
+ * (largest-remainder rounding). With percentages summing to 100 the parts sum to total.
+ */
+export function splitByPercentages(totalCents: number, percentages: number[]): number[] {
+  const pctSum = percentages.reduce((s, p) => s + p, 0);
+  const target = Math.round((totalCents * pctSum) / 100);
+  const exact = percentages.map((p) => (totalCents * p) / 100);
+  const parts = exact.map((x) => Math.floor(x + 1e-9));
+  let leftover = target - parts.reduce((s, p) => s + p, 0);
+  const order = exact
+    .map((x, i) => ({ i, frac: x - Math.floor(x + 1e-9) }))
+    .sort((a, b) => b.frac - a.frac || a.i - b.i);
+  for (let k = 0; leftover > 0 && k < order.length; k++, leftover--) {
+    parts[order[k].i] += 1;
+  }
+  return parts;
+}

@@ -3,7 +3,7 @@
 import * as React from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { useBudgetStore } from "@/store/budget-store";
-import { formatMonthKey, getMonthKey, getNextMonthKey, getUpcomingMonthKeys } from "@/lib/month-utils";
+import { addMonths, formatMonthKey, getMonthKey, getUpcomingMonthKeys } from "@/lib/month-utils";
 import { Button } from "@/components/ui/button";
 import { ChevronDown, CalendarPlus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -35,7 +35,11 @@ export function MonthSwitcher() {
   };
 
   const baseMonth = monthKey ?? getMonthKey(new Date());
-  const upcomingMonths = getUpcomingMonthKeys(getNextMonthKey(baseMonth), 6);
+  // Months that can be added: three before the current one through six after.
+  const savedKeys = new Set(monthlyBudgets.map((b) => b.monthKey ?? b.id));
+  const upcomingMonths = getUpcomingMonthKeys(addMonths(baseMonth, -3), 10).filter(
+    (k) => !savedKeys.has(k)
+  );
 
   return (
     <DropdownMenu.Root open={open} onOpenChange={setOpen}>
@@ -92,10 +96,9 @@ export function MonthSwitcher() {
         )}
 
         <div className="px-3 py-2 text-xs font-medium text-muted-foreground border-t mt-1">
-          Add new month
+          Add a month (copies {budgetName})
         </div>
         {upcomingMonths.map((key) => {
-          const exists = monthlyBudgets.some((b) => (b.monthKey ?? b.id) === key);
           return (
             <DropdownMenu.Item
               key={key}
@@ -105,9 +108,6 @@ export function MonthSwitcher() {
             >
               <CalendarPlus className="h-4 w-4 text-muted-foreground" />
               <span>{formatMonthKey(key)}</span>
-              {exists && (
-                <span className="text-xs text-muted-foreground ml-auto">(edit)</span>
-              )}
             </DropdownMenu.Item>
           );
         })}

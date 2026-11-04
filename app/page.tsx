@@ -4,7 +4,10 @@ import * as React from "react";
 import { useBudgetStore } from "@/store/budget-store";
 import { TotalInput } from "@/components/budget/total-input";
 import { SortableCategoryCard } from "@/components/budget/sortable-category-card";
-import { AllocationSummary } from "@/components/budget/allocation-summary";
+import { MonthOverview } from "@/components/plan/month-overview";
+import { ObligationsSection } from "@/components/plan/obligations-section";
+import { GoalsSection } from "@/components/plan/goals-section";
+import { AutoSplit, AutoSplitNote } from "@/components/plan/auto-split";
 import { AllocationChart } from "@/components/budget/allocation-chart";
 import { TemplateSelector } from "@/components/budget/template-selector";
 import { DataPorter } from "@/components/data-porter";
@@ -27,28 +30,40 @@ function AddCategoryButton() {
   const addCategory = useBudgetStore((s) => s.addCategory);
   const [name, setName] = React.useState("");
   const [isAdding, setIsAdding] = React.useState(false);
+  const [error, setError] = React.useState<string>();
 
   const handleAdd = () => {
     const trimmed = name.trim();
-    if (trimmed) {
-      addCategory(trimmed);
+    if (!trimmed) {
+      setError("Type a name first");
+      return;
+    }
+    if (addCategory(trimmed)) {
       setName("");
+      setError(undefined);
       setIsAdding(false);
+    } else {
+      setError(`"${trimmed}" already exists`);
     }
   };
 
   if (isAdding) {
     return (
-      <div className="flex gap-2 items-center">
+      <div className="flex flex-wrap gap-2 items-center">
         <input
           type="text"
           value={name}
-          onChange={(e) => setName(e.target.value)}
+          onChange={(e) => {
+            setName(e.target.value);
+            setError(undefined);
+          }}
           onKeyDown={(e) => {
             if (e.key === "Enter") handleAdd();
             if (e.key === "Escape") setIsAdding(false);
           }}
           placeholder="Category name"
+          aria-label="New category name"
+          aria-invalid={!!error}
           className="flex h-10 flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm"
           autoFocus
         />
@@ -58,6 +73,7 @@ function AddCategoryButton() {
         <Button variant="ghost" size="sm" onClick={() => setIsAdding(false)}>
           Cancel
         </Button>
+        {error && <p className="w-full text-xs text-destructive">{error}</p>}
       </div>
     );
   }
@@ -112,7 +128,7 @@ export default function Home() {
 
   return (
     <HydrationGuard>
-      <div className="min-h-screen bg-background px-12 sm:px-20 md:px-32 lg:px-40">
+      <div className="min-h-screen bg-background px-4 sm:px-8 md:px-16 lg:px-24">
         {/* Nav: currency + theme only */}
         <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
           <div className="mx-auto flex h-14 max-w-5xl items-center justify-between">
@@ -127,6 +143,7 @@ export default function Home() {
         </header>
 
         <main className="mx-auto max-w-5xl py-8">
+          <AutoSplit />
           {/* Hero: centered */}
           <div className="mb-10 text-center">
             <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
@@ -164,23 +181,23 @@ export default function Home() {
                 <TotalInput />
               </div>
               <div className="lg:col-span-2">
-                <AllocationSummary />
+                <MonthOverview />
               </div>
             </div>
           </section>
 
-          {/* Allocation chart: full width, centered */}
-          <section className="mb-8">
-            <h3 className="mb-4 text-lg font-semibold">Allocation</h3>
-            <div className="rounded-xl border bg-card p-6">
-              <AllocationChart />
-            </div>
-          </section>
+          <ObligationsSection />
 
           {/* Categories */}
-          <section>
+          <section className="mb-8">
             <div className="mb-4 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
-              <h3 className="text-lg font-semibold">Categories</h3>
+              <div>
+                <h3 className="text-lg font-semibold">Spending categories</h3>
+                <p className="text-sm text-muted-foreground">
+                  Tick must-haves so savings suggestions never touch them.{" "}
+                  <AutoSplitNote />
+                </p>
+              </div>
               <AddCategoryButton />
             </div>
             <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
@@ -199,6 +216,16 @@ export default function Home() {
                 </div>
               </SortableContext>
             </DndContext>
+          </section>
+
+          <GoalsSection />
+
+          {/* Allocation chart: full width, centered */}
+          <section className="mb-8">
+            <h3 className="mb-4 text-lg font-semibold">Allocation</h3>
+            <div className="rounded-xl border bg-card p-6">
+              <AllocationChart />
+            </div>
           </section>
         </main>
 
