@@ -63,9 +63,27 @@ function IncomeRow({ source, compact }: { source: IncomeSource; compact: boolean
 
   const amountId = `income-${source.id}`;
 
+  const payDay = (
+    <select
+      value={source.payDay ?? ""}
+      onChange={(e) =>
+        update(source.id, { payDay: e.target.value ? Number(e.target.value) : undefined })
+      }
+      aria-label={`Pay day for ${source.name}`}
+      className="h-10 w-28 shrink-0 rounded-lg border border-input bg-background px-2 text-xs text-muted-foreground"
+    >
+      <option value="">Pay day</option>
+      {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
+        <option key={d} value={d}>
+          Paid {ordinal(d)}
+        </option>
+      ))}
+    </select>
+  );
+
   return (
     <div className="space-y-1.5">
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1">
         <Input
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -75,29 +93,14 @@ function IncomeRow({ source, compact }: { source: IncomeSource; compact: boolean
             else setName(source.name);
           }}
           aria-label="Income name"
-          className="h-8 flex-1 border-transparent bg-transparent px-1 text-sm font-medium hover:border-input focus:border-input"
+          className="h-8 min-w-0 flex-1 border-transparent bg-transparent px-1 text-sm font-medium hover:border-input focus:border-input"
           maxLength={60}
         />
-        <select
-          value={source.payDay ?? ""}
-          onChange={(e) =>
-            update(source.id, { payDay: e.target.value ? Number(e.target.value) : undefined })
-          }
-          aria-label={`Pay day for ${source.name}`}
-          className="h-8 rounded-md border border-input bg-background px-2 text-xs text-muted-foreground"
-        >
-          <option value="">Pay day</option>
-          {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
-            <option key={d} value={d}>
-              Paid on the {ordinal(d)}
-            </option>
-          ))}
-        </select>
         {!compact && (
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+            className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
             onClick={() => remove(source.id)}
             aria-label={`Remove ${source.name}`}
           >
@@ -105,26 +108,29 @@ function IncomeRow({ source, compact }: { source: IncomeSource; compact: boolean
           </Button>
         )}
       </div>
-      <Input
-        id={amountId}
-        type="text"
-        inputMode="decimal"
-        placeholder={decimals ? "0.00" : "0"}
-        value={value}
-        onFocus={() => setFocused(true)}
-        onChange={(e) => {
-          const v = sanitizeAmountInput(e.target.value, decimals);
-          setValue(v);
-          update(source.id, { amountCents: toCents(v || "0", minor) });
-        }}
-        onBlur={() => {
-          setFocused(false);
-          if (source.amountCents) setValue(fromCents(source.amountCents, minor));
-        }}
-        aria-label={`Amount for ${source.name}`}
-        aria-describedby="income-label"
-        className={compact ? "text-2xl font-semibold" : "font-mono"}
-      />
+      <div className="flex items-center gap-2">
+        <Input
+          id={amountId}
+          type="text"
+          inputMode="decimal"
+          placeholder={decimals ? "0.00" : "0"}
+          value={value}
+          onFocus={() => setFocused(true)}
+          onChange={(e) => {
+            const v = sanitizeAmountInput(e.target.value, decimals);
+            setValue(v);
+            update(source.id, { amountCents: toCents(v || "0", minor) });
+          }}
+          onBlur={() => {
+            setFocused(false);
+            if (source.amountCents) setValue(fromCents(source.amountCents, minor));
+          }}
+          aria-label={`Amount for ${source.name}`}
+          aria-describedby="income-label"
+          className={compact ? "min-w-0 text-2xl font-semibold" : "min-w-0 font-mono"}
+        />
+        {payDay}
+      </div>
     </div>
   );
 }
