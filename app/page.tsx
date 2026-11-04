@@ -13,6 +13,7 @@ import { ExpensesSection } from "@/components/plan/expenses-section";
 import { AllocationChart } from "@/components/budget/allocation-chart";
 import { TemplateSelector } from "@/components/budget/template-selector";
 import { DataPorter } from "@/components/data-porter";
+import { BackupMenu } from "@/components/backup-menu";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { CurrencySelector } from "@/components/currency-selector";
 import { MonthSwitcher } from "@/components/month-switcher";
@@ -173,7 +174,10 @@ export default function Home() {
                 Reset
               </Button>
             </div>
-            <DataPorter />
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <DataPorter />
+              <BackupMenu />
+            </div>
           </div>
 
           <CarryOverBanner />
