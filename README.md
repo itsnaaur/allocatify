@@ -1,6 +1,6 @@
 # Allocatify
 
-> **Demo:** [Deploy to Vercel](#deployment) · [Live Preview](#)
+> **Live:** [allocatify.vercel.app](https://allocatify.vercel.app) · [Deploy your own](#deployment-vercel)
 
 A **privacy-first, zero-setup** financial allocation engine. Map your financial distribution instantly—no sign-up, no bank syncing, no spreadsheets.
 
@@ -8,9 +8,16 @@ A **privacy-first, zero-setup** financial allocation engine. Map your financial 
 
 - **Zero Friction** — No accounts. Land on the page, enter numbers, see your budget visualized.
 - **Privacy by Design** — Data stored only in your browser (IndexedDB). Nothing leaves your device.
+- **Income sources** — Salary, freelance, side jobs, each with an optional pay day.
+- **Loans & bills** — Enter what's left to pay (interest included), the monthly payment and due day; they're added to every month, with months left, payoff date and paid/overdue status.
+- **Savings goals** — Price, deadline and priority; a suggested monthly saving from free money only, and how many months until you can afford it.
+- **Safety buffer** — 10% of income (adjustable up to 50%, never below 10%) that suggestions never touch. Must-have categories are protected too.
+- **Spending log** — Log expenses or import a bank statement CSV (columns, date order, decimal commas and debit/credit detected; duplicates skipped). See spent vs planned per category.
+- **Month-end carry-over** — Move what's left into next month or a goal.
+- **Trends** — Where each month's income went, and loans going down.
 - **Smart-Start Templates** — 50/30/20, Freelancer Basic, Student Living, or build custom.
-- **Reactive Engine** — Real-time updates as you change allocations.
-- **Data Porter** — Export to CSV/PDF. Import from bank CSV with auto column detection.
+- **Exports** — CSV and PDF reports with income, loans, spending, goals and expenses.
+- **Backup & restore** — One file with everything, validated before restoring; or delete all data.
 - **Dark Mode** — System-aware theme toggle.
 
 ## Tech Stack
@@ -24,15 +31,6 @@ A **privacy-first, zero-setup** financial allocation engine. Map your financial 
 | Charts       | Recharts                 |
 | PDF          | @react-pdf/renderer      |
 | Deployment   | Vercel                   |
-
-## Getting Started
-
-```bash
-npm install
-npm run dev
-```
-
-Open [http://localhost:3000](http://localhost:3000).
 
 ## Technical Challenges Overcome
 
@@ -50,12 +48,13 @@ This avoids "flash of default state" and keeps server/client HTML in sync.
 
 ### 2. CSV Parser for Unexpected Bank Formats
 
-Bank CSVs vary: different column names, encodings, delimiters, and number formats.
+Bank CSVs vary: different column names, delimiters, date orders and number formats.
 
-**Solution:**
-- **Flexible column detection** — `detectAmountColumn()` scans headers for common names (Amount, Debit, Credit, Total) and falls back to the first column that looks numeric
-- **Robust parsing** — Handles quoted fields, commas in numbers (`$1,234.56`), and both comma and tab delimiters
-- **Graceful degradation** — Returns clear error messages when no usable amount column is found
+**Solution** (`lib/csv.ts`, `lib/bank-import.ts`):
+- **Robust reading** — Quoted fields, escaped quotes, commas/newlines inside quotes, BOM; comma, semicolon or tab delimiters. Account-info lines above the header are skipped.
+- **Column detection** — Date, amount (preferring a debit column, never the balance) and description, judged by header names and by what the cells contain.
+- **Amounts and dates** — `$1,234.56`, `-1.234,56`, `(12.50)`, `12.50 DR`; day/month vs month/day detected, with a prompt when a file can't tell.
+- **The user confirms** — Every guess can be changed in the preview; money-in rows and already-logged expenses are skipped.
 
 ### 3. Currency Without Floating-Point Errors
 
@@ -63,11 +62,16 @@ JavaScript's `0.1 + 0.2 !== 0.3` causes subtle budget math errors.
 
 **Solution:** A **cents-based math engine** — all amounts stored and computed as integers (cents). `toCents()` and `fromCents()` convert at the edges. No float arithmetic in core logic.
 
-## Deployment (Vercel)
+## Development
 
 ```bash
+npm install
+npm run dev     # http://localhost:3000
+npm test        # Vitest: planner maths, templates, currency, backups, reports, bank import
 npm run build
 ```
+
+## Deployment (Vercel)
 
 Connect the repo to Vercel. It will detect Next.js and deploy. No environment variables required.
 
