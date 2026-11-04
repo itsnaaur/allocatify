@@ -63,3 +63,27 @@ describe("auto-split with goals", () => {
     expect(out.map((c) => c.allocatedCents)).toEqual([50000, 0, 0]);
   });
 });
+
+describe("csv", () => {
+  it("reads quotes, escaped quotes, embedded commas/newlines, CRLF and BOM", async () => {
+    const { parseCsvRows } = await import("@/lib/csv");
+    expect(parseCsvRows('﻿a,"b, c","say ""hi"""\r\n1,"x\ny",3')).toEqual([
+      ["a", "b, c", 'say "hi"'],
+      ["1", "x\ny", "3"],
+    ]);
+  });
+
+  it("detects semicolon and tab files", async () => {
+    const { detectDelimiter } = await import("@/lib/csv");
+    expect(detectDelimiter("Date;Amount;Text\n1;2;3")).toBe(";");
+    expect(detectDelimiter("Date\tAmount\n1\t2")).toBe("\t");
+    expect(detectDelimiter('"a;b",c,d')).toBe(",");
+  });
+
+  it("neutralises spreadsheet formulas in exported cells", async () => {
+    const { csvCell } = await import("@/lib/export-utils");
+    expect(csvCell("=HYPERLINK(1)")).toBe("'=HYPERLINK(1)");
+    expect(csvCell("Rent, utilities")).toBe('"Rent, utilities"');
+    expect(csvCell(-12)).toBe("-12");
+  });
+});
