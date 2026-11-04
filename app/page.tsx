@@ -10,6 +10,7 @@ import { GoalsSection } from "@/components/plan/goals-section";
 import { AutoSplit, AutoSplitNote } from "@/components/plan/auto-split";
 import { CarryOverBanner } from "@/components/plan/carry-over-banner";
 import { ExpensesSection } from "@/components/plan/expenses-section";
+import { TrendsSection } from "@/components/plan/trends-section";
 import { AllocationChart } from "@/components/budget/allocation-chart";
 import { TemplateSelector } from "@/components/budget/template-selector";
 import { DataPorter } from "@/components/data-porter";
@@ -237,6 +238,8 @@ export default function Home() {
               <AllocationChart />
             </div>
           </section>
+
+          <TrendsSection />
         </main>
 
         {/* Footer: same max-width and horizontal padding as nav + main */}

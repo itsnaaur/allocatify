@@ -73,3 +73,20 @@ describe("month report", () => {
     expect(rows).toContainEqual(["2026-11-03", "Groceries", "Needs", "600.00"]);
   });
 });
+
+describe("trends", () => {
+  it("splits each month's income and tracks debt going down", async () => {
+    const { buildTrends } = await import("@/lib/trends");
+    const dec = { ...budget, id: "2026-12", monthKey: "2026-12", name: "December 2026", carryInCents: 0, carryInFrom: undefined };
+    const pts = buildTrends([dec, budget], {
+      ...data,
+      payments: [...data.payments, { id: "car_2026-12", obligationId: "car", monthKey: "2026-12", amountCents: 35000, paidAt: 0 }],
+    });
+    expect(pts.map((p) => p.monthKey)).toEqual(["2026-11", "2026-12"]);
+    const [nov, decPt] = pts;
+    // Nov: 3200 in; 1250 bills; 600 needs + 200 fun planned + 50 uncategorized; 500 saved
+    expect(nov).toMatchObject({ incomeCents: 320000, fixedCents: 125000, spendingCents: 85000, savedCents: 50000, leftCents: 60000, overspentCents: 0 });
+    expect(nov.fixedCents + nov.spendingCents + nov.savedCents + nov.leftCents).toBe(nov.incomeCents);
+    expect(decPt.debtCents!).toBeLessThan(nov.debtCents!);
+  });
+});
