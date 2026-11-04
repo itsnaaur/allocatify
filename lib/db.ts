@@ -8,6 +8,7 @@ import type { BudgetSchema } from "./schema-validator";
 import type { Contribution, Expense, Goal, Obligation, Payment } from "./finance";
 import { CURRENCIES, DEFAULT_CURRENCY, type CurrencyCode } from "./currencies";
 import { rescaleMinor } from "./math-engine";
+import type { BackupData } from "./backup";
 
 export interface StoredBudget extends BudgetSchema {
   id: string;
@@ -243,4 +244,53 @@ export async function switchCurrencyEverywhere(
       await database.settings.put({ key: "currency", value: to });
     }
   );
+}
+
+// ---------------------------------------------------------------------------
+// Backup & restore
+// ---------------------------------------------------------------------------
+
+/** Everything stored, for a backup file. */
+export async function exportAllData(): Promise<BackupData | null> {
+  const database = getDB();
+  if (!database) return null;
+  const [budgets, obligations, payments, goals, contributions, expenses, settings] =
+    await Promise.all([
+      database.budgets.toArray(),
+      database.obligations.toArray(),
+      database.payments.toArray(),
+      database.goals.toArray(),
+      database.contributions.toArray(),
+      database.expenses.toArray(),
+      database.settings.toArray(),
+    ]);
+  return { budgets, obligations, payments, goals, contributions, expenses, settings };
+}
+
+/**
+ * Replace everything with a (validated) backup in one transaction: if anything fails,
+ * the existing data stays exactly as it was.
+ */
+export async function replaceAllData(data: BackupData): Promise<void> {
+  const database = getDB();
+  if (!database) return;
+  const tables = [
+    database.budgets,
+    database.obligations,
+    database.payments,
+    database.goals,
+    database.contributions,
+    database.expenses,
+    database.settings,
+  ];
+  await database.transaction("rw", tables, async () => {
+    await Promise.all(tables.map((t) => t.clear()));
+    await database.budgets.bulkPut(data.budgets);
+    await database.obligations.bulkPut(data.obligations);
+    await database.payments.bulkPut(data.payments);
+    await database.goals.bulkPut(data.goals);
+    await database.contributions.bulkPut(data.contributions);
+    await database.expenses.bulkPut(data.expenses);
+    await database.settings.bulkPut(data.settings);
+  });
 }
