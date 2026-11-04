@@ -73,6 +73,8 @@ export interface BudgetState {
   markLeftoverHandled: (monthKey: string) => Promise<void>;
   /** Undo the carry-in shown on the current month. */
   undoCarryIn: () => Promise<void>;
+  /** Offer a finished month's leftover again (after undoing a move into a goal). */
+  reopenLeftover: (monthKey: string) => Promise<void>;
 }
 
 function generateId(): string {
@@ -425,6 +427,17 @@ export const useBudgetStore = create<BudgetState>((set, get) => ({
     }
     await saveQueue;
     await updateStoredBudget(monthKey, (b) => ({ ...b, carryOutHandled: true }));
+    set({ monthlyBudgets: await loadAllBudgets() });
+  },
+
+  reopenLeftover: async (monthKey) => {
+    if (monthKey === get().monthKey) {
+      set({ carryOutHandled: false });
+      await get().persist();
+      return;
+    }
+    await saveQueue;
+    await updateStoredBudget(monthKey, (b) => ({ ...b, carryOutHandled: undefined }));
     set({ monthlyBudgets: await loadAllBudgets() });
   },
 
