@@ -20,6 +20,10 @@ export interface BudgetSchema {
   currency?: string;
   activeTemplateId?: string; // e.g. "50-30-20", "freelancer"
   autoScale?: boolean; // Categories follow their percentages when the total changes
+  carryInCents?: number; // Leftover brought in from the previous month
+  carryInFrom?: string; // monthKey it came from
+  carryOutCents?: number; // Leftover moved out to the next month
+  carryOutHandled?: boolean; // Month-end leftover was dealt with (moved or kept)
   createdAt: number;
   updatedAt: number;
 }

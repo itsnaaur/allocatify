@@ -6,16 +6,19 @@ import { usePlannerStore } from "@/store/planner-store";
 import {
   buildMonthPlan,
   monthHealth,
+  monthLeftover,
   obligationDueInMonth,
   planGoals,
+  spentByCategory,
 } from "@/lib/finance";
-import { getMonthKey } from "@/lib/month-utils";
+import { addMonths, getMonthKey, monthDiff } from "@/lib/month-utils";
 
 /** Everything needed to show the selected month: due payments, goal suggestions, totals. */
 export function useMonthPlan() {
   const totalCents = useBudgetStore((s) => s.totalCents);
   const categories = useBudgetStore((s) => s.categories);
   const storeMonthKey = useBudgetStore((s) => s.monthKey);
+  const carryInCents = useBudgetStore((s) => s.carryInCents);
   const { obligations, payments, goals, contributions, bufferPercent } = usePlannerStore();
 
   const monthKey = storeMonthKey ?? getMonthKey(new Date());
@@ -41,6 +44,7 @@ export function useMonthPlan() {
 
     const plan = buildMonthPlan({
       incomeCents: totalCents,
+      carryInCents,
       fixedCents,
       essentialCents,
       otherSpendingCents,
@@ -52,5 +56,48 @@ export function useMonthPlan() {
     const health = monthHealth(plan, goalSavingsCents);
 
     return { monthKey, dueItems, plan, goalPlans, goalSavingsCents, health };
-  }, [obligations, payments, goals, contributions, bufferPercent, categories, totalCents, monthKey]);
+  }, [obligations, payments, goals, contributions, bufferPercent, categories, totalCents, carryInCents, monthKey]);
+}
+
+/**
+ * Money left over from the month before the one on screen, if that month is over and
+ * its leftover hasn't been dealt with yet. Null when there's nothing to offer.
+ */
+export function usePreviousMonthLeftover() {
+  const storeMonthKey = useBudgetStore((s) => s.monthKey);
+  const monthlyBudgets = useBudgetStore((s) => s.monthlyBudgets);
+  const { obligations, payments, contributions, expenses } = usePlannerStore();
+  const monthKey = storeMonthKey ?? getMonthKey(new Date());
+
+  return React.useMemo(() => {
+    const prevKey = addMonths(monthKey, -1);
+    const prev = monthlyBudgets.find((b) => (b.monthKey ?? b.id) === prevKey);
+    if (!prev || prev.carryOutHandled) return null;
+    // Only once that month is actually over.
+    if (monthDiff(prevKey, getMonthKey(new Date())) < 1) return null;
+
+    const fixedCents = obligations.reduce((sum, ob) => {
+      const paid = payments.find((p) => p.obligationId === ob.id && p.monthKey === prevKey);
+      return sum + (paid?.amountCents ?? obligationDueInMonth(ob, prevKey, payments));
+    }, 0);
+    const goalSavedCents = contributions
+      .filter((c) => c.monthKey === prevKey)
+      .reduce((s, c) => s + c.amountCents, 0);
+
+    const leftoverCents = monthLeftover({
+      incomeCents: prev.totalCents,
+      carryInCents: prev.carryInCents ?? 0,
+      fixedCents,
+      categories: prev.categories,
+      spent: spentByCategory(expenses, prevKey),
+      goalSavedCents,
+      carriedOutCents: prev.carryOutCents ?? 0,
+    });
+    if (leftoverCents <= 0) return null;
+    return {
+      fromMonthKey: prevKey,
+      leftoverCents,
+      tracked: expenses.some((e) => e.monthKey === prevKey),
+    };
+  }, [monthKey, monthlyBudgets, obligations, payments, contributions, expenses]);
 }

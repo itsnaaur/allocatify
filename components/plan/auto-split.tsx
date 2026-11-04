@@ -12,7 +12,7 @@ export function AutoSplit() {
   const autoScale = useBudgetStore((s) => s.autoScale);
   const autoSplit = useBudgetStore((s) => s.autoSplit);
   const { plan, goalSavingsCents } = useMonthPlan();
-  const spendable = plan.incomeCents - plan.fixedCents - plan.bufferCents;
+  const spendable = plan.incomeCents + plan.carryInCents - plan.fixedCents - plan.bufferCents;
 
   React.useEffect(() => {
     if (autoScale) autoSplit(spendable, goalSavingsCents);

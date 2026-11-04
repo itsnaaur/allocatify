@@ -5,7 +5,7 @@
 
 import Dexie, { type Table } from "dexie";
 import type { BudgetSchema } from "./schema-validator";
-import type { Contribution, Goal, Obligation, Payment } from "./finance";
+import type { Contribution, Expense, Goal, Obligation, Payment } from "./finance";
 import { CURRENCIES, DEFAULT_CURRENCY, type CurrencyCode } from "./currencies";
 import { rescaleMinor } from "./math-engine";
 
@@ -26,6 +26,7 @@ export class AllocatifyDB extends Dexie {
   payments!: Table<Payment, string>;
   goals!: Table<Goal, string>;
   contributions!: Table<Contribution, string>;
+  expenses!: Table<Expense, string>;
   settings!: Table<Setting, string>;
 
   constructor() {
@@ -58,6 +59,15 @@ export class AllocatifyDB extends Dexie {
         }
         await tx.table("settings").put({ key: "currency", value: currency });
       });
+    this.version(4).stores({
+      budgets: "id, monthKey, updatedAt",
+      obligations: "id, kind",
+      payments: "id, obligationId, monthKey",
+      goals: "id",
+      contributions: "id, goalId, monthKey",
+      expenses: "id, monthKey, categoryId",
+      settings: "key",
+    });
   }
 }
 
@@ -77,6 +87,10 @@ function rescaleBudget(
     ...b,
     currency,
     totalCents: rescaleMinor(b.totalCents, fromMinor, toMinor),
+    carryInCents:
+      b.carryInCents === undefined ? undefined : rescaleMinor(b.carryInCents, fromMinor, toMinor),
+    carryOutCents:
+      b.carryOutCents === undefined ? undefined : rescaleMinor(b.carryOutCents, fromMinor, toMinor),
     categories: b.categories.map((c) => ({
       ...c,
       allocatedCents: rescaleMinor(c.allocatedCents, fromMinor, toMinor),
@@ -140,6 +154,7 @@ export async function resetAllData(): Promise<void> {
       database.payments,
       database.goals,
       database.contributions,
+      database.expenses,
       database.settings,
     ],
     async () => {
@@ -149,6 +164,7 @@ export async function resetAllData(): Promise<void> {
         database.payments.clear(),
         database.goals.clear(),
         database.contributions.clear(),
+        database.expenses.clear(),
         database.settings.clear(),
       ]);
     }
@@ -192,15 +208,17 @@ export async function switchCurrencyEverywhere(
       database.payments,
       database.goals,
       database.contributions,
+      database.expenses,
       database.settings,
     ],
     async () => {
-      const [budgets, obligations, payments, goals, contributions] = await Promise.all([
+      const [budgets, obligations, payments, goals, contributions, expenses] = await Promise.all([
         database.budgets.toArray(),
         database.obligations.toArray(),
         database.payments.toArray(),
         database.goals.toArray(),
         database.contributions.toArray(),
+        database.expenses.toArray(),
       ]);
       await database.budgets.bulkPut(budgets.map((b) => rescaleBudget(b, f, t, to)));
       await database.obligations.bulkPut(
@@ -221,6 +239,7 @@ export async function switchCurrencyEverywhere(
       await database.contributions.bulkPut(
         contributions.map((c) => ({ ...c, amountCents: r(c.amountCents) }))
       );
+      await database.expenses.bulkPut(expenses.map((e) => ({ ...e, amountCents: r(e.amountCents) })));
       await database.settings.put({ key: "currency", value: to });
     }
   );

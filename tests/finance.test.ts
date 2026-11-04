@@ -200,3 +200,91 @@ describe("goals", () => {
     expect([...shares.values()].reduce((s, v) => s + v, 0)).toBe(100);
   });
 });
+
+describe("carry-in", () => {
+  it("adds to money free to save but not to the buffer base", async () => {
+    const plan = buildMonthPlan({
+      incomeCents: 300000,
+      carryInCents: 20000,
+      fixedCents: 125000,
+      essentialCents: 80000,
+      otherSpendingCents: 0,
+      bufferPercent: 10,
+    });
+    expect(plan.bufferCents).toBe(30000);
+    expect(plan.freeToSaveCents).toBe(85000);
+  });
+});
+
+describe("month leftover", () => {
+  it("uses spent where tracked and planned where not", async () => {
+    const { monthLeftover, spentByCategory } = await import("@/lib/finance");
+    const spent = spentByCategory(
+      [
+        { id: "1", monthKey: "2026-11", date: "2026-11-03", amountCents: 50000, categoryId: "food", createdAt: 0 },
+        { id: "2", monthKey: "2026-11", date: "2026-11-09", amountCents: 10000, categoryId: "food", createdAt: 0 },
+        { id: "3", monthKey: "2026-11", date: "2026-11-09", amountCents: 5000, categoryId: null, createdAt: 0 },
+        { id: "4", monthKey: "2026-12", date: "2026-12-01", amountCents: 99999, categoryId: "food", createdAt: 0 },
+      ],
+      "2026-11"
+    );
+    expect(spent.get("food")).toBe(60000);
+    const left = monthLeftover({
+      incomeCents: 300000,
+      carryInCents: 0,
+      fixedCents: 125000,
+      categories: [
+        { id: "food", allocatedCents: 80000 }, // tracked: 600 spent
+        { id: "fun", allocatedCents: 20000 }, // not tracked: planned 200 counts
+      ],
+      spent,
+      goalSavedCents: 50000,
+      carriedOutCents: 0,
+    });
+    // 3000 - 1250 - 600 - 200 - 50 uncategorized - 500 goal = 400
+    expect(left).toBe(40000);
+  });
+
+  it("drops to zero once carried out", async () => {
+    const { monthLeftover } = await import("@/lib/finance");
+    expect(
+      monthLeftover({
+        incomeCents: 100000,
+        carryInCents: 0,
+        fixedCents: 0,
+        categories: [],
+        spent: new Map(),
+        goalSavedCents: 0,
+        carriedOutCents: 100000,
+      })
+    ).toBe(0);
+  });
+});
+
+describe("goal savings in one month", () => {
+  it("adds a carried-over amount to the monthly saving", () => {
+    const [p] = planGoals(
+      [{ id: "g", name: "G", targetCents: 100000, startingSavedCents: 0, priority: 2, createdAt: 0 }],
+      [
+        { id: "g_2026-11", goalId: "g", monthKey: "2026-11", amountCents: 10000, savedAt: 0 },
+        { id: "g_2026-11_carry", goalId: "g", monthKey: "2026-11", amountCents: 5000, savedAt: 0 },
+      ],
+      0,
+      "2026-11"
+    );
+    expect(p.savedThisMonthCents).toBe(15000);
+  });
+});
+
+describe("goal progress by month", () => {
+  it("ignores savings made in later months", () => {
+    const [p] = planGoals(
+      [{ id: "g", name: "G", targetCents: 150000, startingSavedCents: 20000, priority: 2, createdAt: 0 }],
+      [{ id: "g_2026-11", goalId: "g", monthKey: "2026-11", amountCents: 50000, savedAt: 0 }],
+      0,
+      "2026-10"
+    );
+    expect(p.savedCents).toBe(20000);
+    expect(p.remainingBeforeMonthCents).toBe(130000);
+  });
+});
