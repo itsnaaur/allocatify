@@ -253,10 +253,12 @@ export function planGoals(
 ): GoalPlan[] {
   const info = goals.map((g) => {
     const mine = contributions.filter((c) => c.goalId === g.id);
+    // Only savings up to this month count (viewing October ignores November's saving).
     const before = mine
-      .filter((c) => c.monthKey !== monthKey)
+      .filter((c) => c.monthKey < monthKey)
       .reduce((s, c) => s + c.amountCents, 0);
-    const thisMonth = mine.find((c) => c.monthKey === monthKey)?.amountCents ?? null;
+    const inMonth = mine.filter((c) => c.monthKey === monthKey);
+    const thisMonth = inMonth.length ? inMonth.reduce((s, c) => s + c.amountCents, 0) : null;
     const remainingBefore = Math.max(0, g.targetCents - g.startingSavedCents - before);
     return { g, before, thisMonth, remainingBefore };
   });
@@ -308,7 +310,10 @@ export function planGoals(
 // ---------------------------------------------------------------------------
 
 export interface MonthPlanInput {
+  /** Salary for the month. The safety buffer is a share of this. */
   incomeCents: number;
+  /** Leftover carried in from the previous month (adds to what can be spent). */
+  carryInCents?: number;
   fixedCents: number; // loans + bills due this month
   essentialCents: number; // must-have categories
   otherSpendingCents: number; // non-essential categories
@@ -317,6 +322,7 @@ export interface MonthPlanInput {
 
 export interface MonthPlan {
   incomeCents: number;
+  carryInCents: number;
   fixedCents: number;
   essentialCents: number;
   otherSpendingCents: number;
@@ -329,11 +335,12 @@ export interface MonthPlan {
 export function buildMonthPlan(input: MonthPlanInput): MonthPlan {
   const bufferPercent = clampBufferPercent(input.bufferPercent);
   const bufferCents = Math.ceil((input.incomeCents * bufferPercent) / 100);
+  const carryInCents = Math.max(0, input.carryInCents ?? 0);
   const freeToSaveCents = Math.max(
     0,
-    input.incomeCents - input.fixedCents - input.essentialCents - bufferCents
+    input.incomeCents + carryInCents - input.fixedCents - input.essentialCents - bufferCents
   );
-  return { ...input, bufferPercent, bufferCents, freeToSaveCents };
+  return { ...input, carryInCents, bufferPercent, bufferCents, freeToSaveCents };
 }
 
 export type MonthHealth =
@@ -344,9 +351,10 @@ export type MonthHealth =
 
 /** Left for you = income − loans/bills − all spending − goal savings. Must stay ≥ buffer. */
 export function monthHealth(plan: MonthPlan, goalSavingsCents: number): MonthHealth {
-  if (plan.incomeCents <= 0) return { kind: "no-income" };
+  if (plan.incomeCents + plan.carryInCents <= 0) return { kind: "no-income" };
   const left =
-    plan.incomeCents -
+    plan.incomeCents +
+    plan.carryInCents -
     plan.fixedCents -
     plan.essentialCents -
     plan.otherSpendingCents -
@@ -354,4 +362,65 @@ export function monthHealth(plan: MonthPlan, goalSavingsCents: number): MonthHea
   if (left < 0) return { kind: "over-budget", overCents: -left };
   if (left < plan.bufferCents) return { kind: "into-buffer", shortCents: plan.bufferCents - left };
   return { kind: "ok", leftCents: left };
+}
+
+// ---------------------------------------------------------------------------
+// Actual spending
+// ---------------------------------------------------------------------------
+
+export interface Expense {
+  id: string;
+  monthKey: string;
+  /** "YYYY-MM-DD" */
+  date: string;
+  amountCents: number;
+  /** null = uncategorized (or its category was deleted). */
+  categoryId: string | null;
+  note?: string;
+  createdAt: number;
+}
+
+/** Total spent per category id in a month ("" = uncategorized). */
+export function spentByCategory(expenses: Expense[], monthKey: string): Map<string, number> {
+  const map = new Map<string, number>();
+  for (const e of expenses) {
+    if (e.monthKey !== monthKey) continue;
+    const key = e.categoryId ?? "";
+    map.set(key, (map.get(key) ?? 0) + e.amountCents);
+  }
+  return map;
+}
+
+// ---------------------------------------------------------------------------
+// Month end: leftover and carry-over
+// ---------------------------------------------------------------------------
+
+export interface LeftoverInput {
+  incomeCents: number;
+  carryInCents: number;
+  /** Loans & bills due that month. */
+  fixedCents: number;
+  categories: { id: string; allocatedCents: number }[];
+  /** Spent per category id ("" = uncategorized), from spentByCategory. */
+  spent: Map<string, number>;
+  /** Savings actually recorded for goals that month. */
+  goalSavedCents: number;
+  /** Already moved to another month. */
+  carriedOutCents: number;
+}
+
+/**
+ * Money left at the end of a month. Categories with tracked expenses count what was
+ * spent; categories without any count their planned amount (we can't know better).
+ */
+export function monthLeftover(input: LeftoverInput): number {
+  const known = new Set(input.categories.map((c) => c.id));
+  let used = input.fixedCents + input.goalSavedCents + input.carriedOutCents;
+  for (const c of input.categories) {
+    used += input.spent.has(c.id) ? input.spent.get(c.id)! : c.allocatedCents;
+  }
+  input.spent.forEach((amount, id) => {
+    if (!known.has(id)) used += amount; // uncategorized or deleted category
+  });
+  return Math.max(0, input.incomeCents + input.carryInCents - used);
 }

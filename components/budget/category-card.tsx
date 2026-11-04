@@ -8,7 +8,9 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
+import { useCategorySpent, useExpenseDialog } from "@/components/plan/expenses-section";
+import { cn } from "@/lib/utils";
 import type { CategorySchema } from "@/lib/schema-validator";
 
 interface CategoryCardProps {
@@ -78,7 +80,11 @@ export function CategoryCard({ category, totalCents, dragHandle }: CategoryCardP
   };
 
   const pct = totalCents > 0 ? percentOf(category.allocatedCents, totalCents) : 0;
-  const progress = Math.min(pct, 100);
+  const spent = useCategorySpent(category.id);
+  const openExpense = useExpenseDialog((s) => s.openNew);
+  const planned = category.allocatedCents;
+  const over = spent > planned;
+  const spentPct = planned > 0 ? Math.min(100, (spent / planned) * 100) : spent > 0 ? 100 : 0;
 
   return (
     <Card>
@@ -155,13 +161,32 @@ export function CategoryCard({ category, totalCents, dragHandle }: CategoryCardP
           Must-have (food, rent, transport…)
         </label>
         <div className="space-y-1">
-          <Progress value={progress} className="h-1.5" />
-          <p className="text-xs text-muted-foreground">
-            {pct.toFixed(1)}% of total
-            {category.allocatedCents > 0 && (
-              <> · {formatCents(category.allocatedCents, currency)}</>
-            )}
-          </p>
+          <Progress
+            value={spentPct}
+            className={cn("h-1.5", over && "[&>div]:bg-destructive")}
+            aria-label={`Spent ${formatCents(spent, currency)} of ${formatCents(planned, currency)}`}
+          />
+          <div className="flex items-center justify-between gap-2">
+            <p className={cn("text-xs", over ? "text-destructive" : "text-muted-foreground")}>
+              Spent {formatCents(spent, currency)}
+              {over
+                ? ` · ${formatCents(spent - planned, currency)} over`
+                : planned > 0
+                  ? ` · ${formatCents(planned - spent, currency)} left`
+                  : ""}
+            </p>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs"
+              onClick={() => openExpense(category.id)}
+              aria-label={`Add expense to ${category.name}`}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Expense
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">{pct.toFixed(1)}% of income</p>
         </div>
       </CardContent>
     </Card>

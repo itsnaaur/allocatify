@@ -36,6 +36,12 @@ export interface BudgetState {
   /** Categories follow their percentages when the total changes (until hand-edited). */
   autoScale: boolean;
   createdAt: number;
+  /** Leftover brought in from the previous month (this month's extra money). */
+  carryInCents: number;
+  carryInFrom: string | null;
+  /** Leftover moved out of this month to the next one. */
+  carryOutCents: number;
+  carryOutHandled: boolean;
   isHydrated: boolean;
   // Actions
   setCurrency: (currency: CurrencyCode) => Promise<void>;
@@ -60,6 +66,12 @@ export interface BudgetState {
   switchToMonth: (monthKey: string) => Promise<void>;
   createNewMonth: (monthKey: string, copyFromCurrent?: boolean) => Promise<void>;
   deleteMonth: (monthKey: string) => Promise<void>;
+  /** Move leftover from a finished month into the month on screen. */
+  carryOverToCurrent: (fromMonthKey: string, amountCents: number) => Promise<void>;
+  /** Mark a finished month's leftover as dealt with (kept, or moved to a goal). */
+  markLeftoverHandled: (monthKey: string) => Promise<void>;
+  /** Undo the carry-in shown on the current month. */
+  undoCarryIn: () => Promise<void>;
 }
 
 function generateId(): string {
@@ -124,7 +136,20 @@ function applyBudgetToState(set: (s: Partial<BudgetState>) => void, budget: Stor
     activeTemplateId: budget.activeTemplateId ?? null,
     autoScale,
     createdAt: budget.createdAt ?? Date.now(),
+    carryInCents: budget.carryInCents ?? 0,
+    carryInFrom: budget.carryInFrom ?? null,
+    carryOutCents: budget.carryOutCents ?? 0,
+    carryOutHandled: budget.carryOutHandled ?? false,
   });
+}
+
+/** Change a month that isn't on screen, straight in storage. */
+async function updateStoredBudget(
+  monthKey: string,
+  change: (b: StoredBudget) => StoredBudget
+): Promise<void> {
+  const budget = await loadBudget(monthKey);
+  if (budget) await saveBudget(change(budget));
 }
 
 /** Saves run one after another so an older save can never overwrite a newer one. */
@@ -141,6 +166,10 @@ export const useBudgetStore = create<BudgetState>((set, get) => ({
   activeTemplateId: null,
   autoScale: false,
   createdAt: Date.now(),
+  carryInCents: 0,
+  carryInFrom: null,
+  carryOutCents: 0,
+  carryOutHandled: false,
   isHydrated: false,
 
   setCurrency: async (currency) => {
@@ -306,6 +335,10 @@ export const useBudgetStore = create<BudgetState>((set, get) => ({
       activeTemplateId: state.activeTemplateId ?? undefined,
       autoScale: state.autoScale,
       createdAt: state.createdAt,
+      carryInCents: state.carryInCents || undefined,
+      carryInFrom: state.carryInFrom ?? undefined,
+      carryOutCents: state.carryOutCents || undefined,
+      carryOutHandled: state.carryOutHandled || undefined,
       updatedAt: Date.now(),
     };
     saveQueue = saveQueue
@@ -390,5 +423,46 @@ export const useBudgetStore = create<BudgetState>((set, get) => ({
       });
       get().persist();
     }
+  },
+
+  carryOverToCurrent: async (fromMonthKey, amountCents) => {
+    if (amountCents <= 0) return;
+    const state = get();
+    if (fromMonthKey === state.monthKey) return;
+    set({
+      carryInCents: state.carryInCents + amountCents,
+      carryInFrom: fromMonthKey,
+    });
+    await get().persist();
+    await updateStoredBudget(fromMonthKey, (b) => ({
+      ...b,
+      carryOutCents: (b.carryOutCents ?? 0) + amountCents,
+      carryOutHandled: true,
+    }));
+    set({ monthlyBudgets: await loadAllBudgets() });
+  },
+
+  markLeftoverHandled: async (monthKey) => {
+    if (monthKey === get().monthKey) {
+      set({ carryOutHandled: true });
+      await get().persist();
+      return;
+    }
+    await saveQueue;
+    await updateStoredBudget(monthKey, (b) => ({ ...b, carryOutHandled: true }));
+    set({ monthlyBudgets: await loadAllBudgets() });
+  },
+
+  undoCarryIn: async () => {
+    const { carryInCents, carryInFrom } = get();
+    if (!carryInFrom || carryInCents <= 0) return;
+    set({ carryInCents: 0, carryInFrom: null });
+    await get().persist();
+    await updateStoredBudget(carryInFrom, (b) => ({
+      ...b,
+      carryOutCents: Math.max(0, (b.carryOutCents ?? 0) - carryInCents) || undefined,
+      carryOutHandled: undefined,
+    }));
+    set({ monthlyBudgets: await loadAllBudgets() });
   },
 }));

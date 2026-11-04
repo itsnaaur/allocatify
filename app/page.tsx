@@ -8,6 +8,8 @@ import { MonthOverview } from "@/components/plan/month-overview";
 import { ObligationsSection } from "@/components/plan/obligations-section";
 import { GoalsSection } from "@/components/plan/goals-section";
 import { AutoSplit, AutoSplitNote } from "@/components/plan/auto-split";
+import { CarryOverBanner } from "@/components/plan/carry-over-banner";
+import { ExpensesSection } from "@/components/plan/expenses-section";
 import { AllocationChart } from "@/components/budget/allocation-chart";
 import { TemplateSelector } from "@/components/budget/template-selector";
 import { DataPorter } from "@/components/data-porter";
@@ -174,6 +176,8 @@ export default function Home() {
             <DataPorter />
           </div>
 
+          <CarryOverBanner />
+
           {/* Total + Summary: side by side */}
           <section className="mb-8">
             <div className="grid gap-6 lg:grid-cols-3">
@@ -217,6 +221,8 @@ export default function Home() {
               </SortableContext>
             </DndContext>
           </section>
+
+          <ExpensesSection />
 
           <GoalsSection />
 

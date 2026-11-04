@@ -9,6 +9,7 @@ import { formatCents } from "@/lib/math-engine";
 import { Card, CardContent } from "@/components/ui/card";
 import { AlertTriangle, CheckCircle2, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { CarryInLine } from "./carry-over-banner";
 
 /** Where the month's income goes, and whether the safety buffer is protected. */
 export function MonthOverview() {
@@ -19,7 +20,8 @@ export function MonthOverview() {
   if (health.kind === "no-income") return null;
 
   const left =
-    plan.incomeCents -
+    plan.incomeCents +
+    plan.carryInCents -
     plan.fixedCents -
     plan.essentialCents -
     plan.otherSpendingCents -
@@ -27,6 +29,9 @@ export function MonthOverview() {
 
   const rows: { label: string; cents: number; sign: "+" | "−" }[] = [
     { label: "Income", cents: plan.incomeCents, sign: "+" },
+    ...(plan.carryInCents > 0
+      ? [{ label: "Carried over", cents: plan.carryInCents, sign: "+" as const }]
+      : []),
     { label: "Loans & bills", cents: plan.fixedCents, sign: "−" },
     { label: "Must-haves", cents: plan.essentialCents, sign: "−" },
     { label: "Other spending", cents: plan.otherSpendingCents, sign: "−" },
@@ -75,6 +80,7 @@ export function MonthOverview() {
         </div>
 
         <HealthMessage />
+        <CarryInLine />
 
         <div className="space-y-1.5 border-t pt-3">
           <div className="flex items-center justify-between gap-2 text-sm">
