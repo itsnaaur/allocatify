@@ -4,8 +4,6 @@ import * as React from "react";
 import { useBudgetStore } from "@/store/budget-store";
 import { generateCSV, generateCSVForYear, downloadCSV, getBudgetsForYear } from "@/lib/export-utils";
 import { formatCents, percentOf } from "@/lib/math-engine";
-import { pdf } from "@react-pdf/renderer";
-import { PDFReport } from "@/components/export/pdf-report";
 import { Button } from "@/components/ui/button";
 import { Download, FileText, X } from "lucide-react";
 import {
@@ -96,15 +94,18 @@ export function DataPorter() {
         if (prev) URL.revokeObjectURL(prev);
         return null;
       });
-      pdf(
-        <PDFReport
-          budget={isYearExport ? undefined : exportBudget ?? undefined}
-          budgets={isYearExport ? exportBudgetsForYear : undefined}
-          currency={currency}
-          generatedAt={new Date().toLocaleString()}
-        />
-      )
-        .toBlob()
+      // The PDF library is large: load it only when a PDF preview is opened.
+      Promise.all([import("@react-pdf/renderer"), import("@/components/export/pdf-report")])
+        .then(([{ pdf }, { PDFReport }]) =>
+          pdf(
+            <PDFReport
+              budget={isYearExport ? undefined : exportBudget ?? undefined}
+              budgets={isYearExport ? exportBudgetsForYear : undefined}
+              currency={currency}
+              generatedAt={new Date().toLocaleString()}
+            />
+          ).toBlob()
+        )
         .then((blob) => {
           setPdfBlobUrl(URL.createObjectURL(blob));
         })
@@ -122,24 +123,12 @@ export function DataPorter() {
     setPreviewType("csv");
   };
 
-  const openPdfPreview = async () => {
+  // The preview effect above generates the PDF once previewType/exportScope change,
+  // so opening only sets state (generating here too rendered the PDF twice).
+  const openPdfPreview = () => {
     setExportScope({ type: "current" });
     setIsPdfLoading(true);
     setPreviewType("pdf");
-    try {
-      const doc = (
-        <PDFReport
-          budget={currentBudget}
-          currency={currency}
-          generatedAt={new Date().toLocaleString()}
-        />
-      );
-      const blob = await pdf(doc).toBlob();
-      const url = URL.createObjectURL(blob);
-      setPdfBlobUrl(url);
-    } finally {
-      setIsPdfLoading(false);
-    }
   };
 
   const handleDownloadCsv = () => {

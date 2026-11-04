@@ -21,6 +21,14 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <script
+          // Apply the saved/system theme before first paint (prevents a white flash).
+          dangerouslySetInnerHTML={{
+            __html: `try{var t=localStorage.getItem("allocatify-theme")||"system";var d=t==="dark"||(t==="system"&&matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.classList.add(d?"dark":"light")}catch(e){}`,
+          }}
+        />
+      </head>
       <body className={`${dmSans.variable} font-sans antialiased min-h-screen`}>
         <ThemeProvider
           attribute="class"

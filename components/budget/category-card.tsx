@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useBudgetStore } from "@/store/budget-store";
-import { toCents, formatCents, percentOf, fromCents } from "@/lib/math-engine";
+import { toCents, formatCents, percentOf, fromCents, sanitizeAmountInput } from "@/lib/math-engine";
 import { CURRENCIES } from "@/lib/currencies";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
@@ -23,6 +23,8 @@ export function CategoryCard({ category, totalCents, dragHandle }: CategoryCardP
   const setCategoryAllocation = useBudgetStore((s) => s.setCategoryAllocation);
   const removeCategory = useBudgetStore((s) => s.removeCategory);
   const renameCategory = useBudgetStore((s) => s.renameCategory);
+  const toggleEssential = useBudgetStore((s) => s.toggleEssential);
+  const [nameError, setNameError] = React.useState<string>();
   const minorUnits = CURRENCIES[currency].minorUnitsPerMajor;
   const symbol = CURRENCIES[currency].symbol;
 
@@ -45,7 +47,7 @@ export function CategoryCard({ category, totalCents, dragHandle }: CategoryCardP
   }, [category.name]);
 
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const v = e.target.value;
+    const v = sanitizeAmountInput(e.target.value, minorUnits === 1 ? 0 : 2);
     setLocalValue(v);
     setCategoryAllocation(category.id, toCents(v, minorUnits));
   };
@@ -61,8 +63,18 @@ export function CategoryCard({ category, totalCents, dragHandle }: CategoryCardP
 
   const handleNameSubmit = () => {
     const trimmed = editName.trim();
-    if (trimmed) renameCategory(category.id, trimmed);
-    setIsEditingName(false);
+    if (!trimmed || trimmed === category.name) {
+      setEditName(category.name);
+      setNameError(undefined);
+      setIsEditingName(false);
+      return;
+    }
+    if (renameCategory(category.id, trimmed)) {
+      setNameError(undefined);
+      setIsEditingName(false);
+    } else {
+      setNameError(`"${trimmed}" already exists`);
+    }
   };
 
   const pct = totalCents > 0 ? percentOf(category.allocatedCents, totalCents) : 0;
@@ -83,9 +95,17 @@ export function CategoryCard({ category, totalCents, dragHandle }: CategoryCardP
               value={editName}
               onChange={(e) => setEditName(e.target.value)}
               onBlur={handleNameSubmit}
-              onKeyDown={(e) => e.key === "Enter" && handleNameSubmit()}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleNameSubmit();
+                if (e.key === "Escape") {
+                  setEditName(category.name);
+                  setNameError(undefined);
+                  setIsEditingName(false);
+                }
+              }}
               className="h-8 w-32"
               aria-label={`Rename ${category.name}`}
+              aria-invalid={!!nameError}
               autoFocus
             />
           ) : (
@@ -110,6 +130,7 @@ export function CategoryCard({ category, totalCents, dragHandle }: CategoryCardP
         </Button>
       </CardHeader>
       <CardContent className="space-y-2">
+        {nameError && <p className="text-xs text-destructive">{nameError}</p>}
         <div className="flex gap-2 items-center">
           <span className="text-muted-foreground">{symbol}</span>
           <Input
@@ -124,6 +145,15 @@ export function CategoryCard({ category, totalCents, dragHandle }: CategoryCardP
             className="font-mono"
           />
         </div>
+        <label className="flex w-fit cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+          <input
+            type="checkbox"
+            checked={!!category.essential}
+            onChange={() => toggleEssential(category.id)}
+            className="h-3.5 w-3.5 accent-green-600"
+          />
+          Must-have (food, rent, transport…)
+        </label>
         <div className="space-y-1">
           <Progress value={progress} className="h-1.5" />
           <p className="text-xs text-muted-foreground">

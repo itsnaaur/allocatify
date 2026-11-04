@@ -30,3 +30,13 @@ yarn-error.log*
 # OS
 .DS_Store
 Thumbs.db
+
+# Generated
+*.tsbuildinfo
+next-env.d.ts
+coverage
+
+# Local tooling
+.vercel
+.claude
+*.log

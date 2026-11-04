@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "clean": "node -e \"require('fs').rmSync('.next',{recursive:true,force:true}); console.log('Cleaned .next')\""
+    "clean": "node -e \"require('fs').rmSync('.next',{recursive:true,force:true}); console.log('Cleaned .next')\"",
+    "test": "vitest run"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -40,6 +41,7 @@
     "eslint-config-next": "^15.0.0",
     "postcss": "^8.4.0",
     "tailwindcss": "^3.4.0",
-    "typescript": "^5.6.0"
+    "typescript": "^5.6.0",
+    "vitest": "^3.2.7"
   }
 }
