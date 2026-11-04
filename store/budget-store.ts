@@ -22,6 +22,7 @@ import {
 import type { CurrencyCode } from "@/lib/currencies";
 import { CURRENCIES, DEFAULT_CURRENCY } from "@/lib/currencies";
 import { getMonthKey, formatMonthKey } from "@/lib/month-utils";
+import { upgradeLegacyBudget } from "@/lib/legacy-upgrade";
 import { usePlannerStore } from "@/store/planner-store";
 
 export interface BudgetState {
@@ -99,40 +100,14 @@ function nameTaken(categories: CategorySchema[], name: string, exceptId?: string
   return categories.some((c) => c.id !== exceptId && c.name.trim().toLowerCase() === n);
 }
 
-/**
- * Older saves never applied the default template's split. If nothing has been allocated
- * yet and the categories still match the active template, let them follow it.
- */
-function shouldAutoScale(budget: StoredBudget): boolean {
-  if (budget.autoScale !== undefined) return budget.autoScale;
-  const template = TEMPLATES.find((t) => t.id === budget.activeTemplateId);
-  if (!template || template.categories.length === 0) return false;
-  const sameIds =
-    template.categories.length === budget.categories.length &&
-    template.categories.every((c, i) => budget.categories[i]?.id === c.id);
-  return sameIds && budget.categories.every((c) => c.allocatedCents === 0);
-}
-
-function withTemplatePercentages(budget: StoredBudget): CategorySchema[] {
-  const template = TEMPLATES.find((t) => t.id === budget.activeTemplateId);
-  return budget.categories.map((c) => {
-    const fromTemplate = template?.categories.find((t) => t.id === c.id);
-    return {
-      ...c,
-      percentage: c.percentage ?? fromTemplate?.percentage,
-      essential: c.essential ?? fromTemplate?.essential,
-    };
-  });
-}
-
 function applyBudgetToState(set: (s: Partial<BudgetState>) => void, budget: StoredBudget) {
-  const autoScale = shouldAutoScale(budget);
+  const { categories, autoScale } = upgradeLegacyBudget(budget);
   set({
     budgetId: budget.id,
     budgetName: budget.name,
     monthKey: budget.monthKey ?? budget.id,
     totalCents: budget.totalCents,
-    categories: autoScale ? withTemplatePercentages(budget) : budget.categories,
+    categories,
     activeTemplateId: budget.activeTemplateId ?? null,
     autoScale,
     createdAt: budget.createdAt ?? Date.now(),
