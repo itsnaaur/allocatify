@@ -61,7 +61,7 @@ export interface MonthReport {
   monthKey: string;
   name: string;
   incomeCents: number;
-  incomeSources: { name: string; amountCents: number }[];
+  incomeSources: { name: string; amountCents: number; payDay?: number }[];
   carryInCents: number;
   carryInFrom: string | null;
   fixed: FixedLine[];
@@ -152,7 +152,7 @@ export function buildMonthReport(budget: BudgetSchema, data: PlannerData): Month
   const fixedDueCents = fixed.reduce((s, f) => s + f.dueCents, 0);
   const goalSavedCents = goals.reduce((s, g) => s + g.savedThisMonthCents, 0);
   const incomeSources = budget.incomeSources?.length
-    ? budget.incomeSources.map((s) => ({ name: s.name, amountCents: s.amountCents }))
+    ? budget.incomeSources.map((s) => ({ name: s.name, amountCents: s.amountCents, payDay: s.payDay }))
     : [{ name: "Monthly income", amountCents: budget.totalCents }];
 
   return {

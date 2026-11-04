@@ -3,7 +3,7 @@
  */
 
 import { create } from "zustand";
-import type { CategorySchema } from "@/lib/schema-validator";
+import type { CategorySchema, IncomeSource } from "@/lib/schema-validator";
 import {
   loadAllBudgets,
   loadBudget,
@@ -26,7 +26,9 @@ import { upgradeLegacyBudget } from "@/lib/legacy-upgrade";
 import { usePlannerStore } from "@/store/planner-store";
 
 export interface BudgetState {
+  /** Sum of incomeSources (kept as one number for the maths and older saves). */
   totalCents: number;
+  incomeSources: IncomeSource[];
   categories: CategorySchema[];
   budgetId: string;
   budgetName: string;
@@ -46,7 +48,9 @@ export interface BudgetState {
   isHydrated: boolean;
   // Actions
   setCurrency: (currency: CurrencyCode) => Promise<void>;
-  setTotal: (cents: number) => void;
+  addIncomeSource: (name?: string) => void;
+  updateIncomeSource: (id: string, patch: Partial<Omit<IncomeSource, "id">>) => void;
+  removeIncomeSource: (id: string) => void;
   setCategoryAllocation: (id: string, cents: number) => void;
   /**
    * While auto-split is on: must-haves get their share of what's left to spend,
@@ -108,7 +112,10 @@ function applyBudgetToState(set: (s: Partial<BudgetState>) => void, budget: Stor
     budgetId: budget.id,
     budgetName: budget.name,
     monthKey: budget.monthKey ?? budget.id,
-    totalCents: budget.totalCents,
+    totalCents: budget.incomeSources?.length ? sumIncome(budget.incomeSources) : budget.totalCents,
+    incomeSources: budget.incomeSources?.length
+      ? budget.incomeSources
+      : defaultIncome(budget.totalCents),
     categories,
     activeTemplateId: budget.activeTemplateId ?? null,
     autoScale,
@@ -129,11 +136,18 @@ async function updateStoredBudget(
   if (budget) await saveBudget(change(budget));
 }
 
+function defaultIncome(amountCents = 0): IncomeSource[] {
+  return [{ id: "income_main", name: "Salary", amountCents }];
+}
+
+const sumIncome = (sources: IncomeSource[]) => sources.reduce((s, x) => s + x.amountCents, 0);
+
 /** Saves run one after another so an older save can never overwrite a newer one. */
 let saveQueue: Promise<void> = Promise.resolve();
 
 export const useBudgetStore = create<BudgetState>((set, get) => ({
   totalCents: 0,
+  incomeSources: defaultIncome(),
   categories: DEFAULT_CATEGORIES,
   budgetId: "default",
   budgetName: "My Budget",
@@ -162,8 +176,35 @@ export const useBudgetStore = create<BudgetState>((set, get) => ({
     await usePlannerStore.getState().load();
   },
 
-  setTotal: (cents) => {
-    set({ totalCents: Math.max(0, cents) });
+  addIncomeSource: (name = "Other income") => {
+    const incomeSources = [
+      ...get().incomeSources,
+      { id: `income_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, name, amountCents: 0 },
+    ];
+    set({ incomeSources, totalCents: sumIncome(incomeSources) });
+    get().persist();
+  },
+
+  updateIncomeSource: (id, patch) => {
+    const incomeSources = get().incomeSources.map((src) =>
+      src.id === id
+        ? {
+            ...src,
+            ...patch,
+            name: patch.name !== undefined ? patch.name.slice(0, 60) : src.name,
+            amountCents:
+              patch.amountCents !== undefined ? Math.max(0, patch.amountCents) : src.amountCents,
+          }
+        : src
+    );
+    set({ incomeSources, totalCents: sumIncome(incomeSources) });
+    get().persist();
+  },
+
+  removeIncomeSource: (id) => {
+    const rest = get().incomeSources.filter((src) => src.id !== id);
+    const incomeSources = rest.length ? rest : defaultIncome();
+    set({ incomeSources, totalCents: sumIncome(incomeSources) });
     get().persist();
   },
 
@@ -286,6 +327,7 @@ export const useBudgetStore = create<BudgetState>((set, get) => ({
         name: formatMonthKey(thisMonth),
         monthKey: thisMonth,
         totalCents: 0,
+        incomeSources: defaultIncome(),
         categories: DEFAULT_CATEGORIES,
         currency,
         activeTemplateId: DEFAULT_TEMPLATE_ID,
@@ -307,6 +349,7 @@ export const useBudgetStore = create<BudgetState>((set, get) => ({
       name: state.budgetName,
       monthKey: state.monthKey ?? state.budgetId,
       totalCents: state.totalCents,
+      incomeSources: state.incomeSources,
       categories: state.categories,
       currency: state.currency,
       activeTemplateId: state.activeTemplateId ?? undefined,
@@ -331,6 +374,7 @@ export const useBudgetStore = create<BudgetState>((set, get) => ({
     const state = get();
     set({
       totalCents: 0,
+      incomeSources: defaultIncome(),
       categories: DEFAULT_CATEGORIES,
       budgetId: state.budgetId,
       budgetName: state.budgetName,
@@ -364,6 +408,7 @@ export const useBudgetStore = create<BudgetState>((set, get) => ({
       name,
       monthKey,
       totalCents: copyFromCurrent ? state.totalCents : 0,
+      incomeSources: copyFromCurrent ? state.incomeSources : defaultIncome(),
       categories: copyFromCurrent
         ? state.categories.map((c) => ({ ...c, id: generateId(), allocatedCents: c.allocatedCents }))
         : DEFAULT_CATEGORIES,
@@ -393,6 +438,7 @@ export const useBudgetStore = create<BudgetState>((set, get) => ({
         budgetName: formatMonthKey(newMonthKey),
         monthKey: newMonthKey,
         totalCents: 0,
+        incomeSources: defaultIncome(),
         categories: DEFAULT_CATEGORIES,
         activeTemplateId: DEFAULT_TEMPLATE_ID,
         autoScale: true,

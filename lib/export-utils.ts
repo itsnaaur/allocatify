@@ -43,7 +43,8 @@ export function monthReportCSV(r: MonthReport, currency: CurrencyCode): string {
   lines.push(row([r.name]));
   lines.push(row(["Section", "Item", "Planned", "Actual", "Details"]));
 
-  for (const src of r.incomeSources) lines.push(row(["Income", src.name, m(src.amountCents), "", ""]));
+  for (const src of r.incomeSources)
+    lines.push(row(["Income", src.name, m(src.amountCents), "", src.payDay ? `paid on day ${src.payDay}` : ""]));
   if (r.carryInCents > 0)
     lines.push(
       row([

@@ -33,6 +33,7 @@ export function DataPorter() {
       monthKey: budgetState.monthKey ?? undefined,
       totalCents: budgetState.totalCents,
       categories: budgetState.categories,
+      incomeSources: budgetState.incomeSources,
       carryInCents: budgetState.carryInCents,
       carryInFrom: budgetState.carryInFrom ?? undefined,
       carryOutCents: budgetState.carryOutCents,

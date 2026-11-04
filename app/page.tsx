@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useBudgetStore } from "@/store/budget-store";
-import { TotalInput } from "@/components/budget/total-input";
+import { IncomeCard } from "@/components/budget/income-card";
 import { SortableCategoryCard } from "@/components/budget/sortable-category-card";
 import { MonthOverview } from "@/components/plan/month-overview";
 import { ObligationsSection } from "@/components/plan/obligations-section";
@@ -186,7 +186,7 @@ export default function Home() {
           <section className="mb-8">
             <div className="grid gap-6 lg:grid-cols-3">
               <div className="lg:col-span-1">
-                <TotalInput />
+                <IncomeCard />
               </div>
               <div className="lg:col-span-2">
                 <MonthOverview />
