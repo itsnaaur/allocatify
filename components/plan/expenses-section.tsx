@@ -13,6 +13,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Pencil, Plus, Receipt, Trash2 } from "lucide-react";
 import { Field, MoneyField, centsToMoney, moneyToCents, selectClass } from "./fields";
+import { BankImportButton } from "./bank-import-dialog";
 
 /** Lets category cards open the same "Add expense" dialog with their category picked. */
 export const useExpenseDialog = create<{
@@ -58,10 +59,13 @@ export function ExpensesSection() {
             planned in {formatMonthKey(monthKey)}
           </p>
         </div>
-        <Button variant="outline" onClick={() => openNew()}>
-          <Plus className="h-4 w-4" />
-          Add expense
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <BankImportButton />
+          <Button variant="outline" onClick={() => openNew()}>
+            <Plus className="h-4 w-4" />
+            Add expense
+          </Button>
+        </div>
       </div>
 
       {monthExpenses.length === 0 ? (

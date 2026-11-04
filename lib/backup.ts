@@ -150,9 +150,33 @@ function parseBudget(v: unknown, i: number): StoredBudget {
       essential: bool(o.essential),
     };
   });
+  const incomeSources =
+    b.incomeSources === undefined || b.incomeSources === null
+      ? undefined
+      : uniqueIds(
+          arr(b.incomeSources, `${w} income`).map((x, j) => {
+            const iw = `${w}, income ${j + 1}`;
+            const o = obj(x, iw);
+            const payDay = o.payDay;
+            if (
+              payDay !== undefined &&
+              payDay !== null &&
+              (typeof payDay !== "number" || !Number.isInteger(payDay) || payDay < 1 || payDay > 31)
+            )
+              throw new Invalid(`${iw} pay day is not valid`);
+            return {
+              id: str(o.id, `${iw} id`),
+              name: str(o.name, `${iw} name`, 80),
+              amountCents: amount(o.amountCents, `${iw} amount`),
+              payDay: (payDay ?? undefined) as number | undefined,
+            };
+          }),
+          `${w} income`
+        );
   return {
     id,
     name: str(b.name, `${w} name`, 80),
+    incomeSources,
     monthKey: optMonth(b.monthKey, `${w} month`) ?? id,
     totalCents: amount(b.totalCents, `${w} income`),
     categories: uniqueIds(categories, `${w} categories`),

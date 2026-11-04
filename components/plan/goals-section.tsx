@@ -109,6 +109,8 @@ export function GoalsSection() {
 
                   <GoalStatus goal={goal} gp={gp} />
 
+                  <CarriedIntoGoal goalId={goal.id} />
+
                   {gp.remainingBeforeMonthCents > 0 && (
                     <div className="flex items-center justify-between gap-2 border-t pt-3">
                       <p className="text-sm">
@@ -229,6 +231,35 @@ function GoalStatus({ goal, gp }: { goal: Goal; gp: GoalPlan }) {
                 }`}
         </p>
       )}
+    </div>
+  );
+}
+
+/** "Includes $800 moved from October · Undo" for leftovers put into this goal. */
+function CarriedIntoGoal({ goalId }: { goalId: string }) {
+  const currency = useBudgetStore((s) => s.currency);
+  const reopenLeftover = useBudgetStore((s) => s.reopenLeftover);
+  const contributions = usePlannerStore((s) => s.contributions);
+  const removeCarrySaving = usePlannerStore((s) => s.removeCarrySaving);
+  const carried = contributions.filter((c) => c.goalId === goalId && c.id.endsWith("_carry"));
+  if (carried.length === 0) return null;
+  return (
+    <div className="space-y-1">
+      {carried.map((c) => (
+        <p key={c.id} className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
+          Includes {formatCents(c.amountCents, currency)} left over from {formatMonthKey(c.monthKey)}.
+          <button
+            type="button"
+            className="underline underline-offset-2 hover:text-foreground"
+            onClick={async () => {
+              await removeCarrySaving(goalId, c.monthKey);
+              await reopenLeftover(c.monthKey);
+            }}
+          >
+            Undo
+          </button>
+        </p>
+      ))}
     </div>
   );
 }

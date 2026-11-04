@@ -103,3 +103,23 @@ describe("cleans what it keeps", () => {
     expect(r.file.data.budgets[0].categories[0].color).toBeUndefined();
   });
 });
+
+describe("income sources in backups", () => {
+  const withIncome = (incomeSources: unknown) =>
+    JSON.stringify({ ...buildBackup(data), data: { ...data, budgets: [{ ...data.budgets[0], incomeSources }] } });
+
+  it("keeps several sources with pay days", () => {
+    const r = parseBackup(
+      withIncome([
+        { id: "a", name: "Salary", amountCents: 250000, payDay: 15 },
+        { id: "b", name: "Freelance", amountCents: 50000 },
+      ])
+    );
+    expect(r.ok && r.file.data.budgets[0].incomeSources?.length).toBe(2);
+  });
+
+  it("rejects a bad pay day", () => {
+    const r = parseBackup(withIncome([{ id: "a", name: "Salary", amountCents: 1, payDay: 40 }]));
+    expect(r.ok).toBe(false);
+  });
+});

@@ -11,6 +11,14 @@ export interface CategorySchema {
   essential?: boolean; // Must-have spending (food, rent…) protected when suggesting savings
 }
 
+export interface IncomeSource {
+  id: string;
+  name: string;
+  amountCents: number;
+  /** Optional day of the month it's paid (1–31). */
+  payDay?: number;
+}
+
 export interface BudgetSchema {
   id: string;
   name: string;
@@ -20,6 +28,7 @@ export interface BudgetSchema {
   currency?: string;
   activeTemplateId?: string; // e.g. "50-30-20", "freelancer"
   autoScale?: boolean; // Categories follow their percentages when the total changes
+  incomeSources?: IncomeSource[]; // Salary, freelance… (totalCents is their sum)
   carryInCents?: number; // Leftover brought in from the previous month
   carryInFrom?: string; // monthKey it came from
   carryOutCents?: number; // Leftover moved out to the next month

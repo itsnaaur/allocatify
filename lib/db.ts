@@ -88,6 +88,10 @@ function rescaleBudget(
     ...b,
     currency,
     totalCents: rescaleMinor(b.totalCents, fromMinor, toMinor),
+    incomeSources: b.incomeSources?.map((src) => ({
+      ...src,
+      amountCents: rescaleMinor(src.amountCents, fromMinor, toMinor),
+    })),
     carryInCents:
       b.carryInCents === undefined ? undefined : rescaleMinor(b.carryInCents, fromMinor, toMinor),
     carryOutCents:

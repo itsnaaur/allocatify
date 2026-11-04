@@ -51,6 +51,8 @@ export interface PlannerState {
   removeCarrySaving: (goalId: string, monthKey: string) => Promise<void>;
 
   addExpense: (input: ExpenseInput) => Promise<void>;
+  /** Many at once (bank import), saved in one transaction. */
+  addExpenses: (inputs: ExpenseInput[]) => Promise<void>;
   updateExpense: (id: string, input: ExpenseInput) => Promise<void>;
   deleteExpense: (id: string) => Promise<void>;
 }
@@ -210,6 +212,21 @@ export const usePlannerStore = create<PlannerState>((set, get) => ({
       ),
     });
     await getDB()?.expenses.put(expense);
+  },
+
+  addExpenses: async (inputs) => {
+    const now = Date.now();
+    const created: Expense[] = inputs.map((input, i) => ({
+      ...input,
+      id: newId("exp"),
+      createdAt: now + i,
+    }));
+    set({
+      expenses: [...created, ...get().expenses].sort(
+        (a, b) => b.date.localeCompare(a.date) || b.createdAt - a.createdAt
+      ),
+    });
+    await getDB()?.expenses.bulkPut(created);
   },
 
   updateExpense: async (id, input) => {

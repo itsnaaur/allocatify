@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useBudgetStore } from "@/store/budget-store";
-import { TotalInput } from "@/components/budget/total-input";
+import { IncomeCard } from "@/components/budget/income-card";
 import { SortableCategoryCard } from "@/components/budget/sortable-category-card";
 import { MonthOverview } from "@/components/plan/month-overview";
 import { ObligationsSection } from "@/components/plan/obligations-section";
@@ -10,6 +10,7 @@ import { GoalsSection } from "@/components/plan/goals-section";
 import { AutoSplit, AutoSplitNote } from "@/components/plan/auto-split";
 import { CarryOverBanner } from "@/components/plan/carry-over-banner";
 import { ExpensesSection } from "@/components/plan/expenses-section";
+import { TrendsSection } from "@/components/plan/trends-section";
 import { AllocationChart } from "@/components/budget/allocation-chart";
 import { TemplateSelector } from "@/components/budget/template-selector";
 import { DataPorter } from "@/components/data-porter";
@@ -186,7 +187,7 @@ export default function Home() {
           <section className="mb-8">
             <div className="grid gap-6 lg:grid-cols-3">
               <div className="lg:col-span-1">
-                <TotalInput />
+                <IncomeCard />
               </div>
               <div className="lg:col-span-2">
                 <MonthOverview />
@@ -237,6 +238,8 @@ export default function Home() {
               <AllocationChart />
             </div>
           </section>
+
+          <TrendsSection />
         </main>
 
         {/* Footer: same max-width and horizontal padding as nav + main */}
