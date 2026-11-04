@@ -35,7 +35,7 @@ function Month({ r, currency }: { r: MonthReport; currency: CurrencyCode }) {
         {[
           ["Income", r.incomeCents + r.carryInCents],
           ["Loans & bills", t.fixedDueCents],
-          ["Spending (logged where tracked)", t.actualSpendingCents || t.plannedSpendingCents],
+          ["Spending (logged, or planned where not logged)", t.countedSpendingCents],
           ["Goal savings", t.goalSavedCents],
           ...(r.carryOutCents > 0 ? ([["Moved to next month", r.carryOutCents]] as [string, number][]) : []),
         ].map(([label, value]) => (

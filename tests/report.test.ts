@@ -90,3 +90,14 @@ describe("trends", () => {
     expect(decPt.debtCents!).toBeLessThan(nov.debtCents!);
   });
 });
+
+describe("report totals agree", () => {
+  it("income = bills + counted spending + goals + left over", () => {
+    const r = buildMonthReport(budget, data);
+    const t = r.totals;
+    expect(t.countedSpendingCents).toBe(85000);
+    expect(t.fixedDueCents + t.countedSpendingCents + t.goalSavedCents + t.leftCents).toBe(
+      r.incomeCents + r.carryInCents
+    );
+  });
+});

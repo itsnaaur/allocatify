@@ -25,9 +25,7 @@ export function buildTrends(budgets: BudgetSchema[], data: PlannerData, maxMonth
   );
   return sorted.slice(-maxMonths).map((b) => {
     const r = buildMonthReport(b, data);
-    const spendingCents =
-      r.categories.reduce((s, c) => s + (c.spentCents ?? c.plannedCents), 0) +
-      r.uncategorizedSpentCents;
+    const spendingCents = r.totals.countedSpendingCents;
     const incomeCents = r.incomeCents + r.carryInCents;
     const used = r.totals.fixedDueCents + spendingCents + r.totals.goalSavedCents;
     return {

@@ -75,6 +75,8 @@ export interface MonthReport {
     fixedPaidCents: number;
     plannedSpendingCents: number;
     actualSpendingCents: number;
+    /** Logged where tracked, planned where not (what "left over" is based on). */
+    countedSpendingCents: number;
     goalSavedCents: number;
     /** Left at the end: logged spending where tracked, planned where not. */
     leftCents: number;
@@ -174,6 +176,9 @@ export function buildMonthReport(budget: BudgetSchema, data: PlannerData): Month
       plannedSpendingCents: categories.reduce((s, c) => s + c.plannedCents, 0),
       actualSpendingCents:
         categories.reduce((s, c) => s + (c.spentCents ?? 0), 0) + uncategorizedSpentCents,
+      countedSpendingCents:
+        categories.reduce((s, c) => s + (c.spentCents ?? c.plannedCents), 0) +
+        uncategorizedSpentCents,
       goalSavedCents,
       leftCents: monthLeftover({
         incomeCents: budget.totalCents,

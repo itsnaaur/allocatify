@@ -90,7 +90,15 @@ export function monthReportCSV(r: MonthReport, currency: CurrencyCode): string {
   const t = r.totals;
   lines.push(row(["Summary", "Income", m(r.incomeCents + r.carryInCents), "", ""]));
   lines.push(row(["Summary", "Loans & bills", m(t.fixedDueCents), m(t.fixedPaidCents), ""]));
-  lines.push(row(["Summary", "Spending", m(t.plannedSpendingCents), m(t.actualSpendingCents), ""]));
+  lines.push(
+    row([
+      "Summary",
+      "Spending",
+      m(t.plannedSpendingCents),
+      m(t.actualSpendingCents),
+      `Counted toward left over: ${m(t.countedSpendingCents)}`,
+    ])
+  );
   lines.push(row(["Summary", "Goal savings", "", m(t.goalSavedCents), ""]));
   if (r.carryOutCents > 0)
     lines.push(row(["Summary", "Moved to next month", "", m(r.carryOutCents), ""]));
