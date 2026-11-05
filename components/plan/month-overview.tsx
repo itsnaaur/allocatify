@@ -2,9 +2,7 @@
 
 import * as React from "react";
 import { useBudgetStore } from "@/store/budget-store";
-import { usePlannerStore } from "@/store/planner-store";
 import { useMonthPlan } from "@/lib/use-month-plan";
-import { MAX_BUFFER_PERCENT, MIN_BUFFER_PERCENT } from "@/lib/finance";
 import { formatCents } from "@/lib/math-engine";
 import { Card, CardContent } from "@/components/ui/card";
 import { AlertTriangle, CheckCircle2, ShieldCheck } from "lucide-react";
@@ -14,7 +12,6 @@ import { CarryInLine } from "./carry-over-banner";
 /** Where the month's income goes, and whether the safety buffer is protected. */
 export function MonthOverview() {
   const currency = useBudgetStore((s) => s.currency);
-  const setBufferPercent = usePlannerStore((s) => s.setBufferPercent);
   const { plan, goalSavingsCents, health } = useMonthPlan();
 
   if (health.kind === "no-income") return null;
@@ -46,7 +43,7 @@ export function MonthOverview() {
         : "border-green-500/50 bg-green-500/5";
 
   return (
-    <Card className={cn("h-full", tone)}>
+    <Card className={tone}>
       <CardContent className="py-4 space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -82,32 +79,11 @@ export function MonthOverview() {
         <HealthMessage />
         <CarryInLine />
 
-        <div className="space-y-1.5 border-t pt-3">
-          <div className="flex items-center justify-between gap-2 text-sm">
-            <label htmlFor="buffer-range" className="flex items-center gap-1.5 font-medium">
-              <ShieldCheck className="h-4 w-4 text-green-600 dark:text-green-400" aria-hidden />
-              Safety buffer
-            </label>
-            <span className="font-mono">
-              {plan.bufferPercent}% · {formatCents(plan.bufferCents, currency)}
-            </span>
-          </div>
-          <input
-            id="buffer-range"
-            type="range"
-            min={MIN_BUFFER_PERCENT}
-            max={MAX_BUFFER_PERCENT}
-            step={5}
-            value={plan.bufferPercent}
-            onChange={(e) => setBufferPercent(Number(e.target.value))}
-            className="w-full accent-green-600"
-            aria-describedby="buffer-hint"
-          />
-          <p id="buffer-hint" className="text-xs text-muted-foreground">
-            Kept untouched for surprises. Savings suggestions never use it. Minimum{" "}
-            {MIN_BUFFER_PERCENT}%, you can raise it up to {MAX_BUFFER_PERCENT}%.
-          </p>
-        </div>
+        <p className="flex items-center gap-1.5 border-t pt-3 text-xs text-muted-foreground">
+          <ShieldCheck className="h-3.5 w-3.5 text-green-600 dark:text-green-400" aria-hidden />
+          Safety buffer {plan.bufferPercent}% · {formatCents(plan.bufferCents, currency)} kept
+          aside, never used for savings suggestions
+        </p>
       </CardContent>
     </Card>
   );

@@ -2,93 +2,51 @@
 
 import * as React from "react";
 import { useBudgetStore } from "@/store/budget-store";
+import { isTab, useNav, type Tab } from "@/store/nav-store";
 import { IncomeCard } from "@/components/budget/income-card";
-import { SortableCategoryCard } from "@/components/budget/sortable-category-card";
+import { AllocationChart } from "@/components/budget/allocation-chart";
 import { MonthOverview } from "@/components/plan/month-overview";
 import { ObligationsSection } from "@/components/plan/obligations-section";
+import { CategoriesSection } from "@/components/plan/categories-section";
+import { SafetyBufferCard } from "@/components/plan/safety-buffer-card";
 import { GoalsSection } from "@/components/plan/goals-section";
-import { AutoSplit, AutoSplitNote } from "@/components/plan/auto-split";
+import { AutoSplit } from "@/components/plan/auto-split";
 import { CarryOverBanner } from "@/components/plan/carry-over-banner";
-import { ExpensesSection } from "@/components/plan/expenses-section";
+import { ExpenseDialog, ExpensesSection, useExpenseDialog } from "@/components/plan/expenses-section";
 import { TrendsSection } from "@/components/plan/trends-section";
-import { AllocationChart } from "@/components/budget/allocation-chart";
-import { TemplateSelector } from "@/components/budget/template-selector";
-import { DataPorter } from "@/components/data-porter";
-import { BackupMenu } from "@/components/backup-menu";
+import {
+  GetStartedCard,
+  GoalsSnapshot,
+  SpendingSnapshot,
+  UpcomingPayments,
+} from "@/components/overview/snapshots";
+import { ExportDialog } from "@/components/export-dialog";
+import { DataMenu } from "@/components/data-menu";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { CurrencySelector } from "@/components/currency-selector";
 import { MonthSwitcher } from "@/components/month-switcher";
-import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogClose,
-} from "@/components/ui/dialog";
-import { Plus, RotateCcw, AlertTriangle } from "lucide-react";
-import { DndContext, closestCenter, type DragEndEvent } from "@dnd-kit/core";
-import { SortableContext, rectSortingStrategy } from "@dnd-kit/sortable";
+  BarChart3,
+  ClipboardList,
+  LayoutDashboard,
+  PiggyBank,
+  Plus,
+  Receipt,
+  type LucideIcon,
+} from "lucide-react";
 
-function AddCategoryButton() {
-  const addCategory = useBudgetStore((s) => s.addCategory);
-  const [name, setName] = React.useState("");
-  const [isAdding, setIsAdding] = React.useState(false);
-  const [error, setError] = React.useState<string>();
+const NAV: { tab: Tab; label: string; icon: LucideIcon }[] = [
+  { tab: "overview", label: "Overview", icon: LayoutDashboard },
+  { tab: "plan", label: "Plan", icon: ClipboardList },
+  { tab: "spending", label: "Spending", icon: Receipt },
+  { tab: "goals", label: "Goals", icon: PiggyBank },
+  { tab: "trends", label: "Trends", icon: BarChart3 },
+];
 
-  const handleAdd = () => {
-    const trimmed = name.trim();
-    if (!trimmed) {
-      setError("Type a name first");
-      return;
-    }
-    if (addCategory(trimmed)) {
-      setName("");
-      setError(undefined);
-      setIsAdding(false);
-    } else {
-      setError(`"${trimmed}" already exists`);
-    }
-  };
-
-  if (isAdding) {
-    return (
-      <div className="flex flex-wrap gap-2 items-center">
-        <input
-          type="text"
-          value={name}
-          onChange={(e) => {
-            setName(e.target.value);
-            setError(undefined);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") handleAdd();
-            if (e.key === "Escape") setIsAdding(false);
-          }}
-          placeholder="Category name"
-          aria-label="New category name"
-          aria-invalid={!!error}
-          className="flex h-10 flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm"
-          autoFocus
-        />
-        <Button size="sm" onClick={handleAdd}>
-          Add
-        </Button>
-        <Button variant="ghost" size="sm" onClick={() => setIsAdding(false)}>
-          Cancel
-        </Button>
-        {error && <p className="w-full text-xs text-destructive">{error}</p>}
-      </div>
-    );
-  }
-
-  return (
-    <Button variant="outline" onClick={() => setIsAdding(true)} aria-label="Add new category">
-      <Plus className="h-4 w-4" />
-      Add Category
-    </Button>
-  );
-}
+/** Same width and side padding everywhere: 16px on phones up to 32px on desktop. */
+const CONTAINER = "mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8";
 
 function HydrationGuard({ children }: { children: React.ReactNode }) {
   const isHydrated = useBudgetStore((s) => s.isHydrated);
@@ -109,188 +67,231 @@ function HydrationGuard({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-export default function Home() {
-  const categories = useBudgetStore((s) => s.categories);
-  const totalCents = useBudgetStore((s) => s.totalCents);
+/** Keep the open tab in the URL hash so refresh and the back button work. */
+function useHashTab() {
+  const tab = useNav((s) => s.tab);
+  const setTab = useNav((s) => s.setTab);
+
+  React.useEffect(() => {
+    const fromHash = () => {
+      const h = window.location.hash.slice(1);
+      setTab(isTab(h) ? h : "overview");
+    };
+    fromHash();
+    window.addEventListener("hashchange", fromHash);
+    window.addEventListener("popstate", fromHash);
+    return () => {
+      window.removeEventListener("hashchange", fromHash);
+      window.removeEventListener("popstate", fromHash);
+    };
+  }, [setTab]);
+
+  React.useEffect(() => {
+    const want = tab === "overview" ? "" : `#${tab}`;
+    if (window.location.hash !== want) {
+      history.pushState(null, "", want || window.location.pathname);
+      window.scrollTo({ top: 0 });
+    }
+  }, [tab]);
+}
+
+function NavButtons({ variant }: { variant: "top" | "bottom" }) {
+  const tab = useNav((s) => s.tab);
+  const setTab = useNav((s) => s.setTab);
+  return (
+    <>
+      {NAV.map(({ tab: t, label, icon: Icon }) => {
+        const active = t === tab;
+        return (
+          <button
+            key={t}
+            type="button"
+            onClick={() => setTab(t)}
+            aria-current={active ? "page" : undefined}
+            className={
+              variant === "top"
+                ? cn(
+                    "relative flex items-center gap-2 px-3 py-3 text-sm font-medium transition-colors",
+                    active ? "text-foreground" : "text-muted-foreground hover:text-foreground"
+                  )
+                : cn(
+                    "flex min-h-[56px] flex-1 flex-col items-center justify-center gap-0.5 text-[11px] font-medium",
+                    active ? "text-green-600 dark:text-green-400" : "text-muted-foreground"
+                  )
+            }
+          >
+            <Icon className={variant === "top" ? "h-4 w-4" : "h-5 w-5"} aria-hidden />
+            {label}
+            {variant === "top" && active && (
+              <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-green-600 dark:bg-green-400" />
+            )}
+          </button>
+        );
+      })}
+    </>
+  );
+}
+
+function PageTitle({ title, subtitle }: { title: string; subtitle?: string }) {
+  return (
+    <div>
+      <h2 className="text-2xl font-bold tracking-tight">{title}</h2>
+      {subtitle && <p className="text-sm text-muted-foreground">{subtitle}</p>}
+    </div>
+  );
+}
+
+function OverviewTab() {
   const budgetName = useBudgetStore((s) => s.budgetName);
-  const reset = useBudgetStore((s) => s.reset);
-  const reorderCategories = useBudgetStore((s) => s.reorderCategories);
-  const [resetDialogOpen, setResetDialogOpen] = React.useState(false);
+  return (
+    <div className="space-y-6">
+      <PageTitle title={budgetName} subtitle="Your month at a glance" />
+      <CarryOverBanner />
+      <GetStartedCard />
+      <div className="grid gap-6 lg:grid-cols-5">
+        <div className="space-y-6 lg:col-span-3">
+          <MonthOverview />
+          <UpcomingPayments />
+        </div>
+        <div className="space-y-6 lg:col-span-2">
+          <SpendingSnapshot />
+          <GoalsSnapshot />
+        </div>
+      </div>
+      <Card>
+        <CardContent className="p-4 sm:p-6">
+          <h3 className="mb-4 text-base font-semibold">Where your income goes</h3>
+          <AllocationChart />
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
 
-  const handleConfirmReset = () => {
-    reset();
-    setResetDialogOpen(false);
-  };
+function PlanTab() {
+  const budgetName = useBudgetStore((s) => s.budgetName);
+  return (
+    <div className="space-y-8">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <PageTitle title="Plan" subtitle={`Income, bills and categories for ${budgetName}`} />
+        <div className="flex items-center gap-2 text-sm text-muted-foreground md:hidden">
+          Currency <CurrencySelector />
+        </div>
+      </div>
+      <div className="grid gap-6 md:grid-cols-2">
+        <IncomeCard />
+        <SafetyBufferCard />
+      </div>
+      <ObligationsSection />
+      <CategoriesSection />
+    </div>
+  );
+}
 
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-    const fromIndex = categories.findIndex((c) => c.id === active.id);
-    const toIndex = categories.findIndex((c) => c.id === over.id);
-    if (fromIndex >= 0 && toIndex >= 0) reorderCategories(fromIndex, toIndex);
-  };
+function SpendingTab() {
+  const budgetName = useBudgetStore((s) => s.budgetName);
+  return (
+    <div className="space-y-6">
+      <PageTitle title="Spending" subtitle={`What you've spent in ${budgetName}`} />
+      <div className="grid gap-6 lg:grid-cols-3">
+        <div className="lg:col-span-1">
+          <SpendingSnapshot showLink={false} title="By category" />
+        </div>
+        <div className="lg:col-span-2">
+          <ExpensesSection />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function GoalsTab() {
+  return (
+    <div className="space-y-6">
+      <PageTitle title="Goals" />
+      <GoalsSection />
+    </div>
+  );
+}
+
+function TrendsTab() {
+  const months = useBudgetStore((s) => s.monthlyBudgets.length);
+  return (
+    <div className="space-y-6">
+      <PageTitle title="Trends" />
+      {months < 2 && (
+        <Card>
+          <CardContent className="py-8 text-center text-sm text-muted-foreground">
+            Trends appear once you have two or more months. Add next month from the month menu at
+            the top.
+          </CardContent>
+        </Card>
+      )}
+      <TrendsSection />
+    </div>
+  );
+}
+
+export default function Home() {
+  useHashTab();
+  const tab = useNav((s) => s.tab);
+  const openExpense = useExpenseDialog((s) => s.openNew);
 
   return (
     <HydrationGuard>
-      <div className="min-h-screen bg-background px-4 sm:px-8 md:px-16 lg:px-24">
-        {/* Nav: currency + theme only */}
-        <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-          <div className="mx-auto flex h-14 max-w-5xl items-center justify-between">
-            <h1 className="text-xl font-bold tracking-tight">
+      {/* Bottom room on phones so content scrolls clear of the nav bar and + button. */}
+      <div className="min-h-screen bg-background pb-40 sm:pb-0">
+        <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/75">
+          <div className={cn(CONTAINER, "flex h-14 items-center gap-2 sm:gap-4")}>
+            <h1 className="shrink-0 text-lg font-bold tracking-tight sm:text-xl">
               A<span className="text-green-600 dark:text-green-400">ll</span>ocatify
             </h1>
-            <div className="flex items-center gap-2">
-              <CurrencySelector />
-              <ThemeToggle />
+            <div className="flex min-w-0 flex-1 justify-center sm:justify-start">
+              <MonthSwitcher />
             </div>
+            <div className="hidden md:block">
+              <CurrencySelector />
+            </div>
+            <ThemeToggle />
+            <DataMenu />
           </div>
+          <nav aria-label="Sections" className={cn(CONTAINER, "hidden gap-1 sm:flex")}>
+            <NavButtons variant="top" />
+          </nav>
         </header>
 
-        <main className="mx-auto max-w-5xl py-8">
+        <main className={cn(CONTAINER, "py-6")}>
           <AutoSplit />
-          {/* Hero: centered */}
-          <div className="mb-10 text-center">
-            <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
-              Map your financial future
-            </h2>
-            <p className="mt-2 text-muted-foreground">
-              Zero sign-up. Your data stays on your device.
-            </p>
-          </div>
-
-          {/* Tools row: month switcher, templates, reset, export/import */}
-          <div className="mb-8 flex flex-col sm:flex-row flex-wrap items-center gap-8 sm:gap-4 sm:justify-between">
-            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
-              <MonthSwitcher />
-              <TemplateSelector />
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setResetDialogOpen(true)}
-                aria-label="Reset this month"
-                className="text-muted-foreground hover:text-destructive"
-              >
-                <RotateCcw className="h-4 w-4" />
-                Reset
-              </Button>
-            </div>
-            <div className="flex flex-wrap items-center justify-center gap-2">
-              <DataPorter />
-              <BackupMenu />
-            </div>
-          </div>
-
-          <CarryOverBanner />
-
-          {/* Total + Summary: side by side */}
-          <section className="mb-8">
-            <div className="grid gap-6 lg:grid-cols-3">
-              <div className="lg:col-span-1">
-                <IncomeCard />
-              </div>
-              <div className="lg:col-span-2">
-                <MonthOverview />
-              </div>
-            </div>
-          </section>
-
-          <ObligationsSection />
-
-          {/* Categories */}
-          <section className="mb-8">
-            <div className="mb-4 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
-              <div>
-                <h3 className="text-lg font-semibold">Spending categories</h3>
-                <p className="text-sm text-muted-foreground">
-                  Tick must-haves so savings suggestions never touch them.{" "}
-                  <AutoSplitNote />
-                </p>
-              </div>
-              <AddCategoryButton />
-            </div>
-            <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-              <SortableContext
-                items={categories.map((c) => c.id)}
-                strategy={rectSortingStrategy}
-              >
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {categories.map((cat) => (
-                    <SortableCategoryCard
-                      key={cat.id}
-                      category={cat}
-                      totalCents={totalCents}
-                    />
-                  ))}
-                </div>
-              </SortableContext>
-            </DndContext>
-          </section>
-
-          <ExpensesSection />
-
-          <GoalsSection />
-
-          {/* Allocation chart: full width, centered */}
-          <section className="mb-8">
-            <h3 className="mb-4 text-lg font-semibold">Allocation</h3>
-            <div className="rounded-xl border bg-card p-6">
-              <AllocationChart />
-            </div>
-          </section>
-
-          <TrendsSection />
+          {tab === "overview" && <OverviewTab />}
+          {tab === "plan" && <PlanTab />}
+          {tab === "spending" && <SpendingTab />}
+          {tab === "goals" && <GoalsTab />}
+          {tab === "trends" && <TrendsTab />}
         </main>
 
-        {/* Footer: same max-width and horizontal padding as nav + main */}
-        <footer className="mt-16 border-t py-8">
-          <div className="mx-auto max-w-5xl text-center text-sm text-muted-foreground">
-            Allocatify · Your data never leaves your device · No accounts required
-            <p className="mt-2 text-xs opacity-70">
-              © 2026 Noemi. All lefts (and rights) reserved.
-            </p>
-          </div>
+        <footer className={cn(CONTAINER, "border-t py-6 text-center text-xs text-muted-foreground")}>
+          Zero sign-up · Your data never leaves your device
+          <p className="mt-1 opacity-70">© 2026 Noemi. All lefts (and rights) reserved.</p>
         </footer>
 
-        {/* Reset confirmation dialog */}
-        <Dialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
-          <DialogContent className="max-w-md">
-            <DialogHeader className="flex flex-row items-start gap-3">
-              <div className="rounded-full bg-destructive/10 p-2">
-                <AlertTriangle className="h-5 w-5 text-destructive" />
-              </div>
-              <div className="flex-1">
-                <DialogTitle>Reset {budgetName}?</DialogTitle>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  This will clear the following for this month:
-                </p>
-                <ul className="mt-3 list-inside list-disc space-y-1 text-sm text-muted-foreground">
-                  <li>Total budget amount</li>
-                  <li>All category allocations</li>
-                  <li>Category names and amounts</li>
-                </ul>
-                <p className="mt-3 text-sm text-muted-foreground">
-                  Your month will be reset to the default template. This cannot be undone.
-                </p>
-              </div>
-            </DialogHeader>
-            <div className="flex gap-2 justify-end mt-4">
-              <DialogClose asChild>
-                <Button type="button" variant="outline">
-                  Cancel
-                </Button>
-              </DialogClose>
-              <Button
-                type="button"
-                variant="destructive"
-                onClick={handleConfirmReset}
-              >
-                <RotateCcw className="h-4 w-4" />
-                Reset
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+        {/* Phones: quick add + bottom navigation */}
+        <button
+          type="button"
+          onClick={() => openExpense()}
+          className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] right-4 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-green-600 text-white shadow-lg hover:bg-green-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:hidden"
+          aria-label="Add expense"
+        >
+          <Plus className="h-6 w-6" />
+        </button>
+        <nav
+          aria-label="Sections"
+          className="fixed inset-x-0 bottom-0 z-40 flex border-t bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur sm:hidden"
+        >
+          <NavButtons variant="bottom" />
+        </nav>
+
+        <ExpenseDialog />
+        <ExportDialog />
       </div>
     </HydrationGuard>
   );

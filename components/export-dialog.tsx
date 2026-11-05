@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { create } from "zustand";
 import { useBudgetStore } from "@/store/budget-store";
 import { usePlannerStore } from "@/store/planner-store";
 import { downloadCSV, getBudgetsForYear, reportsCSV } from "@/lib/export-utils";
@@ -12,15 +13,27 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from "@
 import type { BudgetSchema } from "@/lib/schema-validator";
 
 type PreviewType = "csv" | "pdf" | null;
+
+/** Lets the data menu open the CSV or PDF preview. */
+export const useExportDialog = create<{
+  type: PreviewType;
+  open: (type: "csv" | "pdf") => void;
+  close: () => void;
+}>((set) => ({
+  type: null,
+  open: (type) => set({ type }),
+  close: () => set({ type: null }),
+}));
 type ExportScope = { type: "current" } | { type: "month"; monthKey: string } | { type: "year"; year: number };
 
-/** CSV and PDF exports of one month or a whole year, with loans, goals and expenses. */
-export function DataPorter() {
+/** CSV and PDF export previews (opened from the data menu). */
+export function ExportDialog() {
   const budgetState = useBudgetStore();
   const { monthKey, budgetName, currency, monthlyBudgets } = budgetState;
   const planner = usePlannerStore();
 
-  const [previewType, setPreviewType] = React.useState<PreviewType>(null);
+  const previewType = useExportDialog((s) => s.type);
+  const closeDialog = useExportDialog((s) => s.close);
   const [exportScope, setExportScope] = React.useState<ExportScope>({ type: "current" });
   const [pdfBlobUrl, setPdfBlobUrl] = React.useState<string | null>(null);
   const [isPdfLoading, setIsPdfLoading] = React.useState(false);
@@ -106,18 +119,18 @@ export function DataPorter() {
     };
   }, [previewType, reports, currency]);
 
-  const open = (type: PreviewType) => {
-    setExportScope({ type: "current" });
-    setPreviewType(type);
-  };
+  // Each time a preview opens, start from the month on screen.
+  React.useEffect(() => {
+    if (previewType) setExportScope({ type: "current" });
+  }, [previewType]);
 
   const closePreview = React.useCallback(() => {
-    setPreviewType(null);
+    closeDialog();
     setPdfBlobUrl((prev) => {
       if (prev) URL.revokeObjectURL(prev);
       return null;
     });
-  }, []);
+  }, [closeDialog]);
 
   const handleDownloadCsv = () => {
     downloadCSV(csvContent, `allocatify-${slug}.csv`);
@@ -180,17 +193,6 @@ export function DataPorter() {
 
   return (
     <>
-      <div className="flex flex-wrap items-center justify-center sm:justify-end gap-2">
-        <Button type="button" variant="outline" size="sm" onClick={() => open("csv")} aria-label="Preview and export CSV">
-          <Download className="h-4 w-4" />
-          CSV
-        </Button>
-        <Button type="button" variant="outline" size="sm" onClick={() => open("pdf")} aria-label="Preview and export PDF">
-          <FileText className="h-4 w-4" />
-          PDF
-        </Button>
-      </div>
-
       {previewType && (
         <Dialog open onOpenChange={(o) => !o && closePreview()}>
           <DialogContent className="w-[calc(100vw-2rem)] max-w-3xl max-h-[85dvh] sm:max-h-[90vh] overflow-hidden flex flex-col p-4 sm:p-6">

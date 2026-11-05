@@ -51,17 +51,16 @@ export function ExpensesSection() {
 
   return (
     <section className="mb-8">
-      <div className="mb-4 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
-        <div>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
           <h3 className="text-lg font-semibold">Spending log</h3>
           <p className="text-sm text-muted-foreground">
-            {formatCents(spentTotal, currency)} spent of {formatCents(plannedTotal, currency)}{" "}
-            planned in {formatMonthKey(monthKey)}
+            {formatCents(spentTotal, currency)} spent of {formatCents(plannedTotal, currency)} planned
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex shrink-0 gap-2">
           <BankImportButton />
-          <Button variant="outline" onClick={() => openNew()}>
+          <Button variant="outline" className="hidden sm:inline-flex" onClick={() => openNew()}>
             <Plus className="h-4 w-4" />
             Add expense
           </Button>
@@ -126,7 +125,6 @@ export function ExpensesSection() {
         </Card>
       )}
 
-      <ExpenseDialog />
     </section>
   );
 }
@@ -149,7 +147,8 @@ function defaultDate(monthKey: string): string {
   return `${monthKey}-01`;
 }
 
-function ExpenseDialog() {
+/** Rendered once at app level so any tab can open it. */
+export function ExpenseDialog() {
   const { editing, close } = useExpenseDialog();
   const key = editing
     ? "id" in editing
