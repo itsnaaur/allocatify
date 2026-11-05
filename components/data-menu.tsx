@@ -21,7 +21,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { AlertTriangle, ChevronDown, Download, HardDriveDownload, Trash2, Upload } from "lucide-react";
+import {
+  AlertTriangle,
+  Download,
+  FileSpreadsheet,
+  FileText,
+  MoreHorizontal,
+  Trash2,
+  Upload,
+} from "lucide-react";
+import { useExportDialog } from "@/components/export-dialog";
 import { cn } from "@/lib/utils";
 
 const LAST_BACKUP_KEY = "allocatify-last-backup";
@@ -54,7 +63,9 @@ async function downloadBackup(): Promise<void> {
   localStorage.setItem(LAST_BACKUP_KEY, now.toISOString());
 }
 
-export function BackupMenu() {
+/** The ⋯ menu: exports, backup, restore, delete all. */
+export function DataMenu() {
+  const openExport = useExportDialog((s) => s.open);
   const [open, setOpen] = React.useState(false);
   const [lastBackup, setLastBackup] = React.useState<string | null>(null);
   const [pending, setPending] = React.useState<BackupFile | null>(null);
@@ -113,19 +124,30 @@ export function BackupMenu() {
     <>
       <DropdownMenu.Root open={open} onOpenChange={setOpen}>
         <DropdownMenu.Trigger asChild>
-          <Button variant="outline" aria-label="Backup, restore or delete your data">
-            <HardDriveDownload className="h-4 w-4" />
-            Backup
-            <ChevronDown className={cn("h-4 w-4 transition-transform", open && "rotate-180")} />
+          <Button variant="ghost" size="icon" aria-label="Export, backup and data options">
+            <MoreHorizontal className="h-5 w-5" />
           </Button>
         </DropdownMenu.Trigger>
         <DropdownMenu.Content
-          className="z-50 min-w-[240px] rounded-lg border bg-card p-1 shadow-md"
+          className="z-50 min-w-[250px] rounded-lg border bg-card p-1 shadow-md"
           align="end"
+          sideOffset={6}
         >
-          <div className="px-3 py-2 text-xs text-muted-foreground">
-            Your data lives only in this browser. {lastBackupLabel(lastBackup)}.
-          </div>
+          <DropdownMenu.Label className="px-3 pb-1 pt-2 text-xs font-medium text-muted-foreground">
+            Export
+          </DropdownMenu.Label>
+          <DropdownMenu.Item className={itemClass} onSelect={() => openExport("csv")}>
+            <FileSpreadsheet className="h-4 w-4" />
+            Export CSV…
+          </DropdownMenu.Item>
+          <DropdownMenu.Item className={itemClass} onSelect={() => openExport("pdf")}>
+            <FileText className="h-4 w-4" />
+            Export PDF report…
+          </DropdownMenu.Item>
+          <DropdownMenu.Separator className="my-1 h-px bg-border" />
+          <DropdownMenu.Label className="px-3 pb-1 pt-2 text-xs font-medium text-muted-foreground">
+            Backup · {lastBackupLabel(lastBackup)}
+          </DropdownMenu.Label>
           <DropdownMenu.Item className={itemClass} onSelect={onDownload}>
             <Download className="h-4 w-4" />
             Download backup

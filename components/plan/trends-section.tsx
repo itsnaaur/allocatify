@@ -81,7 +81,6 @@ export function TrendsSection() {
     <section className="mb-8">
       <div className="mb-4 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
         <div>
-          <h3 className="text-lg font-semibold">Trends</h3>
           <p className="text-sm text-muted-foreground">
             Last {points.length} months · where each month&apos;s income went
           </p>
